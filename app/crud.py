@@ -1,5 +1,7 @@
 from app.models import Category, Unit, Recipe, Ingredient, RecipeIngredient
-from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT_QUERY
+from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
+                        , RECIPE_COMPOSITION_INITIAL_STATE_QUERY, RECIPE_COMPOSITION_LOADED_STATE_QUERY\
+                        , RECIPE_COMPOSITION_FILTERED_STATE_QUERY
 from setup import db
 
 
@@ -19,7 +21,10 @@ query_switch = {
     , 'unit': UNIT_QUERY
     , 'recipe': RECIPE_QUERY
     , 'ingredient': INGREDIENT_QUERY
-    , 'recipe_ingredient': RECIPE_INGREDIENT_QUERY
+    , 'recipe_ingredient': RECIPE_INGREDIENT
+    , 'recipe_composition_initial': RECIPE_COMPOSITION_INITIAL_STATE_QUERY
+    , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_STATE_QUERY
+    , 'recipe_composition_filtered': RECIPE_COMPOSITION_FILTERED_STATE_QUERY
 }
 
 table_switch = {
@@ -111,6 +116,7 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
         , 'logger': f"Querying <{table_name}s> was succesful!"
     }
     results, status_code, message = db.touch(read_data, [statement], messages, True)
+    print(results)
 
     results = [dict(row) for row in results]
     if results:
@@ -167,7 +173,7 @@ async def crud_delete(response: Response, table_name: str = None, data: dict = B
     return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
 
 
-@crud_router.post("/crud/insert/bulk")
+@crud_router.post("/crud/insert_bulk")
 async def crud_insert_bulk(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Insert multiple rows into a table. Data example:
