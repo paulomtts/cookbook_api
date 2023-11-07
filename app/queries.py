@@ -1,4 +1,4 @@
-from sqlmodel import select, func, literal
+from sqlmodel import select, func, literal, case
 from app.models import Category, Unit, Recipe, Ingredient, RecipeIngredient
 
 CATEGORY_QUERY = select(
@@ -74,7 +74,7 @@ RECIPE_COMPOSITION_INITIAL_STATE_QUERY = select(
 ).order_by(Ingredient.name)
 
 row_number = func.row_number().over(order_by=Ingredient.name)
-RECIPE_COMPOSITION_LOADED_STATE_QUERY = select(
+RECIPE_COMPOSITION_LOADED_STATE_QUERY = lambda id_recipe: select(
     row_number.label('id'),
     RecipeIngredient.id.label('id_recipe_ingredient'),
     Ingredient.id.label('id_ingredient'),
@@ -83,7 +83,10 @@ RECIPE_COMPOSITION_LOADED_STATE_QUERY = select(
     Ingredient.type.label('type'),
     Ingredient.created_at.label('created_at'),
     Ingredient.updated_at.label('updated_at'),
-    RecipeIngredient.quantity.label('quantity'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, RecipeIngredient.quantity)],
+        else_=0
+    ).label('quantity'),
     Unit.id.label('id_unit'),
     Unit.name.label('unit'),
 ).select_from(

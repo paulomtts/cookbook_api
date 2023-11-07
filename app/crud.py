@@ -116,7 +116,6 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
         , 'logger': f"Querying <{table_name}s> was succesful!"
     }
     results, status_code, message = db.touch(read_data, [statement], messages, True)
-    print(results)
 
     results = [dict(row) for row in results]
     if results:
