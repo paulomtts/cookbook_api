@@ -55,40 +55,43 @@ RECIPE_INGREDIENT = select(
 row_number = func.row_number().over(order_by=Ingredient.name)
 RECIPE_COMPOSITION_INITIAL_STATE_QUERY = select(
     row_number.label('id'),
-    RecipeIngredient.id.label('id_recipe_ingredient'),
+    literal(None).label('id_recipe_ingredient'),
     Ingredient.id.label('id_ingredient'),
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
     Ingredient.type.label('type'),
-    Ingredient.created_at.label('created_at'),
-    Ingredient.updated_at.label('updated_at'),
     literal(0).label('quantity'),
-    Unit.id.label('id_unit'),
-    Unit.name.label('unit'),
+    literal(None).label('id_unit'),
+    literal(None).label('unit'),
 ).select_from(
     Ingredient
 ).outerjoin(
     RecipeIngredient, RecipeIngredient.id_ingredient == Ingredient.id
-).outerjoin(
-    Unit, Unit.id == RecipeIngredient.id_unit
 ).order_by(Ingredient.name)
 
 row_number = func.row_number().over(order_by=Ingredient.name)
 RECIPE_COMPOSITION_LOADED_STATE_QUERY = lambda id_recipe: select(
     row_number.label('id'),
-    RecipeIngredient.id.label('id_recipe_ingredient'),
+    case(
+        [(RecipeIngredient.id_recipe == None, RecipeIngredient.id)], 
+        else_=None
+    ).label('id_recipe_ingredient'),
     Ingredient.id.label('id_ingredient'),
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
     Ingredient.type.label('type'),
-    Ingredient.created_at.label('created_at'),
-    Ingredient.updated_at.label('updated_at'),
     case(
         [(RecipeIngredient.id_recipe == id_recipe, RecipeIngredient.quantity)],
         else_=0
     ).label('quantity'),
-    Unit.id.label('id_unit'),
-    Unit.name.label('unit'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, Unit.id)],
+        else_=None
+    ).label('id_unit'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, Unit.name)],
+        else_=None
+    ).label('unit'),
 ).select_from(
     Ingredient
 ).outerjoin(
@@ -104,8 +107,6 @@ RECIPE_COMPOSITION_FILTERED_STATE_QUERY = lambda id: select(
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
     Ingredient.type.label('type'),
-    Ingredient.created_at.label('created_at'),
-    Ingredient.updated_at.label('updated_at'),
     RecipeIngredient.quantity.label('quantity'),
     Unit.id.label('id_unit'),
     Unit.name.label('unit'),

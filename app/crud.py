@@ -27,6 +27,8 @@ query_switch = {
     , 'recipe_composition_filtered': RECIPE_COMPOSITION_FILTERED_STATE_QUERY
 }
 
+callable_queries = [RECIPE_COMPOSITION_LOADED_STATE_QUERY, RECIPE_COMPOSITION_FILTERED_STATE_QUERY]
+
 table_switch = {
     'category': Category
     , 'unit': Unit
@@ -67,6 +69,10 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
     
     The parameters should be formatted as follows:
     >>> {
+            "lambda_args": {
+                "arg1": "value1",
+                "arg2": "value2",
+            }
             "filters": {
                 "or": {
                     "name": ["value1", "value2"],
@@ -87,6 +93,11 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
     """
     
     statement = query_switch[table_name]
+
+    if statement in callable_queries:
+        callable_args = data.get('lambda_args', {})
+        statement = statement(**callable_args)
+
 
     filters: dict = data.get('filters', {})
     conditions: list = []
