@@ -50,8 +50,3 @@ app.add_middleware( # necessary to allow requests from local services
 db = DBClient('postgresql', 'postgres', 'postgres', 'localhost', '5432', 'postgres', 'cookbook', logger)
 from app.models import Recipe
 # db.insert_dummy_data(Recipe)
-# db.insert_dummy_data(Recipe)
-# db.insert_dummy_data(Recipe)
-# db.insert_dummy_data(Recipe)
-# db.insert_dummy_data(Recipe)
-# db.insert_dummy_data(Recipe)
