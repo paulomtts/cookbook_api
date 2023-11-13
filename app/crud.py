@@ -1,7 +1,7 @@
 from app.models import Category, Unit, Recipe, Ingredient, RecipeIngredient
 from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
-                        , RECIPE_COMPOSITION_INITIAL_STATE_QUERY, RECIPE_COMPOSITION_LOADED_STATE_QUERY\
-                        , RECIPE_COMPOSITION_FILTERED_STATE_QUERY
+                        , RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY\
+                        , RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from setup import db
 
 
@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse, Response
 from sqlalchemy import or_, and_
 from sqlmodel import text
 
+import pandas as pd
 import json
 
 
@@ -22,12 +23,12 @@ query_switch = {
     , 'recipe': RECIPE_QUERY
     , 'ingredient': INGREDIENT_QUERY
     , 'recipe_ingredient': RECIPE_INGREDIENT
-    , 'recipe_composition_initial': RECIPE_COMPOSITION_INITIAL_STATE_QUERY
-    , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_STATE_QUERY
-    , 'recipe_composition_filtered': RECIPE_COMPOSITION_FILTERED_STATE_QUERY
+    , 'recipe_composition_empty': RECIPE_COMPOSITION_EMPTY_QUERY
+    , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_QUERY
+    , 'recipe_composition_snapshot': RECIPE_COMPOSITION_SNAPSHOT_QUERY
 }
 
-callable_queries = [RECIPE_COMPOSITION_LOADED_STATE_QUERY, RECIPE_COMPOSITION_FILTERED_STATE_QUERY]
+callable_queries = [RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY]
 
 table_switch = {
     'category': Category
@@ -61,7 +62,7 @@ async def crud_insert(response: Response, table_name: str = None, data: dict = B
 
 
 @crud_router.post("/crud/select")
-async def crud_select(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud_select(response: Response, table_name: str = None, structured: bool = False, data: dict = Body(...)) -> JSONResponse:
     """
     Query the database for a table. The statements used here are meant to make
     tables readable, often joining with other tables so as to provide more than
@@ -123,7 +124,7 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
 
     read_data = lambda statement: db.session.execute(statement).fetchall()
     messages = {
-        'client': f"{table_name.capitalize()}s retrieved."
+        'client': f"{table_name.replace('_', ' ').capitalize()}s retrieved."
         , 'logger': f"Querying <{table_name}s> was succesful!"
     }
     results, status_code, message = db.touch(read_data, [statement], messages, True)
@@ -134,9 +135,21 @@ async def crud_select(response: Response, table_name: str = None, data: dict = B
     else:
         json_data = json.dumps([{}], default=str)
 
+    # if structured:
+    #     df = pd.DataFrame(results, columns=statement.columns.keys())
+    #     df.index = df['id']
+
+    #     if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
+    #     if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
+        
+    #     data_dict = df.to_dict(orient='index')
+    #     structured_data = json.dumps(data_dict, indent=4)
+
+
     if status_code == 204:
         return Response(status_code=status_code, headers=response.headers)
 
+    # return JSONResponse(status_code=status_code, content={'data': json_data, 'structured_data': structured_data, 'message': message}, headers=response.headers)
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 

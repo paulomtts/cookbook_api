@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 
 import threading
 import datetime
+from .models import Recipe
 
 
 STATUS_DICT = {
@@ -28,10 +29,32 @@ class DBClient():
 
         self.logger = logger
 
-        self.jobs = {}
-        self.thread = threading.Thread(target=self._manage_jobs)
-        self.thread.daemon = True  # Make the thread a daemon so it doesn't block program exit
-        self.thread.start()
+        # self.jobs = {}
+        # self.thread = threading.Thread(target=self._manage_jobs)
+        # self.thread.daemon = True  # Make the thread a daemon so it doesn't block program exit
+        # self.thread.start()
+
+
+    def insert_dummy_data(self, cls):
+        import random
+        import string
+
+        # keys = list(cls.__annotations__.keys())
+
+        entries = []
+        generate_random_string = lambda length: ''.join(random.choice(string.ascii_letters) for _ in range(length))
+        for _ in range(1000):
+            recipe = dict(
+                name=generate_random_string(10),
+                description=generate_random_string(20),
+                period=generate_random_string(5),
+                type=generate_random_string(5))
+            entries.append(recipe)
+            messages = {
+                'logger': f"DUMMY insert in Recipe was successful."
+            }
+            
+        self.bulk_insert(Recipe, entries, messages)
 
 
     def __del__(self):
@@ -54,7 +77,7 @@ class DBClient():
             for job_uuid, job in self.jobs.items():
                 start_time = datetime.datetime.strptime(job['start_time'], '%Y-%m-%d %H:%M:%S')
 
-                if current_time - start_time >= datetime.timedelta(seconds=5):
+                if current_time - start_time >= datetime.timedelta(seconds=10):
                     keys_to_delete.append(job_uuid)
 
             for key in keys_to_delete:

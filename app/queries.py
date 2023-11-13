@@ -52,10 +52,11 @@ RECIPE_INGREDIENT = select(
 # while also allowing for the recipe ingredients to be quantified. The division between three states is necessary
 # to allow for state comparisons. One for when no Recipe is selected, another for when a recipe has been clicked,
 # and the last to compare updates to the recipe ingredients.
-row_number = func.row_number().over(order_by=Ingredient.name)
-RECIPE_COMPOSITION_INITIAL_STATE_QUERY = select(
-    row_number.label('id'),
+
+RECIPE_COMPOSITION_EMPTY_QUERY = select(
+    Ingredient.id.label('id'),
     literal(None).label('id_recipe_ingredient'),
+    literal(None).label('id_recipe'),
     Ingredient.id.label('id_ingredient'),
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
@@ -69,13 +70,14 @@ RECIPE_COMPOSITION_INITIAL_STATE_QUERY = select(
     RecipeIngredient, RecipeIngredient.id_ingredient == Ingredient.id
 ).order_by(Ingredient.name)
 
-row_number = func.row_number().over(order_by=Ingredient.name)
-RECIPE_COMPOSITION_LOADED_STATE_QUERY = lambda id_recipe: select(
-    row_number.label('id'),
+
+RECIPE_COMPOSITION_LOADED_QUERY = lambda id_recipe: select(
+    Ingredient.id.label('id'),
     case(
-        [(RecipeIngredient.id_recipe == None, RecipeIngredient.id)], 
+        [(RecipeIngredient.id_recipe == id_recipe, RecipeIngredient.id)], 
         else_=None
     ).label('id_recipe_ingredient'),
+    literal(id_recipe).label('id_recipe'),
     Ingredient.id.label('id_ingredient'),
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
@@ -100,16 +102,26 @@ RECIPE_COMPOSITION_LOADED_STATE_QUERY = lambda id_recipe: select(
     Unit, Unit.id == RecipeIngredient.id_unit
 ).order_by(Ingredient.name)
 
-RECIPE_COMPOSITION_FILTERED_STATE_QUERY = lambda id: select(
-    row_number.label('id'),
+RECIPE_COMPOSITION_SNAPSHOT_QUERY = lambda id_recipe: select(
+    Ingredient.id.label('id'),
     RecipeIngredient.id.label('id_recipe_ingredient'),
+    RecipeIngredient.id_recipe.label('id_recipe'),
     Ingredient.id.label('id_ingredient'),
     Ingredient.name.label('name'),
     Ingredient.description.label('description'),
     Ingredient.type.label('type'),
-    RecipeIngredient.quantity.label('quantity'),
-    Unit.id.label('id_unit'),
-    Unit.name.label('unit'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, RecipeIngredient.quantity)],
+        else_=0
+    ).label('quantity'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, Unit.id)],
+        else_=None
+    ).label('id_unit'),
+    case(
+        [(RecipeIngredient.id_recipe == id_recipe, Unit.name)],
+        else_=None
+    ).label('unit'),
 ).select_from(
     Ingredient
 ).outerjoin(
@@ -117,5 +129,5 @@ RECIPE_COMPOSITION_FILTERED_STATE_QUERY = lambda id: select(
 ).outerjoin(
     Unit, Unit.id == RecipeIngredient.id_unit
 ).where(
-    RecipeIngredient.id_recipe == id
+    RecipeIngredient.id_recipe == id_recipe, RecipeIngredient.quantity > 0
 ).order_by(Ingredient.name)
