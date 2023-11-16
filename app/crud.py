@@ -135,21 +135,20 @@ async def crud_select(response: Response, table_name: str = None, structured: bo
     else:
         json_data = json.dumps([{}], default=str)
 
-    # if structured:
-    #     df = pd.DataFrame(results, columns=statement.columns.keys())
-    #     df.index = df['id']
+    if results and structured:
+        df = pd.DataFrame(results, columns=statement.columns.keys())
+        df.index = df['id']
 
-    #     if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
-    #     if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
+        if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
+        if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
         
-    #     data_dict = df.to_dict(orient='index')
-    #     structured_data = json.dumps(data_dict, indent=4)
+        data_dict = df.to_dict(orient='index')
+        json_data = json.dumps(data_dict, indent=4)
 
 
     if status_code == 204:
         return Response(status_code=status_code, headers=response.headers)
 
-    # return JSONResponse(status_code=status_code, content={'data': json_data, 'structured_data': structured_data, 'message': message}, headers=response.headers)
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
