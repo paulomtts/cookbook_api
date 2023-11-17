@@ -116,7 +116,7 @@ class DBClient():
         """
         Session-based insert.
         """
-        fn = lambda: self.session.merge(table_object, on_duplicate="all")
+        fn = lambda: self.session.merge(table_object)
         result, status_code, message = self.touch(fn, [], messages)
         return result, status_code, message
 
