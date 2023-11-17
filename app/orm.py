@@ -6,7 +6,6 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 
 import threading
 import datetime
-from .models import Recipes
 
 
 STATUS_DICT = {
