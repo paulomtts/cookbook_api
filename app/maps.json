@@ -1,0 +1,21 @@
+{
+    "forms": {
+        "fields" :{
+            "ingredients": [
+                "name"
+                , "description"
+                , "type"
+            ]
+            , "categories": [
+                "name"
+                , "description"
+                , "instructions"
+            ]
+            , "units": [
+                "name"
+                , "abbreviation"
+                , "base"
+            ]
+        }
+    }
+}

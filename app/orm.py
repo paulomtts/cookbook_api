@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 
 import threading
 import datetime
-from .models import Recipe
+from .models import Recipes
 
 
 STATUS_DICT = {
@@ -54,7 +54,7 @@ class DBClient():
                 'logger': f"DUMMY insert in Recipe was successful."
             }
             
-        self.bulk_insert(Recipe, entries, messages)
+        self.bulk_insert(Recipes, entries, messages)
 
 
     def __del__(self):
@@ -116,7 +116,7 @@ class DBClient():
         """
         Session-based insert.
         """
-        fn = lambda: self.session.merge(table_object, on_duplicate="all")
+        fn = lambda: self.session.merge(table_object)
         result, status_code, message = self.touch(fn, [], messages)
         return result, status_code, message
 
