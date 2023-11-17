@@ -35,28 +35,6 @@ class DBClient():
         # self.thread.start()
 
 
-    def insert_dummy_data(self, cls):
-        import random
-        import string
-
-        # keys = list(cls.__annotations__.keys())
-
-        entries = []
-        generate_random_string = lambda length: ''.join(random.choice(string.ascii_letters) for _ in range(length))
-        for _ in range(1000):
-            recipe = dict(
-                name=generate_random_string(10),
-                description=generate_random_string(20),
-                period=generate_random_string(5),
-                type=generate_random_string(5))
-            entries.append(recipe)
-            messages = {
-                'logger': f"DUMMY insert in Recipe was successful."
-            }
-            
-        self.bulk_insert(Recipes, entries, messages)
-
-
     def __del__(self):
         """
         Automatically close the session and release resources when the DBClient object is about to be destroyed.
@@ -116,6 +94,9 @@ class DBClient():
         """
         Session-based insert.
         """
+        if hasattr(table_object, 'updated_at'):
+            delattr(table_object, 'updated_at') # reason: update this timestamp
+
         fn = lambda: self.session.merge(table_object)
         result, status_code, message = self.touch(fn, [], messages)
         return result, status_code, message
