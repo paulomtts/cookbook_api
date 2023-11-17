@@ -1,0 +1,16 @@
+{
+    "crud": {
+        "tables" :{
+            "ingredients": [
+                "name"
+                , "description"
+                , "type"
+            ]
+            , "categories": [
+                "name"
+                , "description"
+                , "instructions"
+            ]
+        }
+    }
+}
