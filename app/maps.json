@@ -1,6 +1,6 @@
 {
-    "crud": {
-        "tables" :{
+    "forms": {
+        "fields" :{
             "ingredients": [
                 "name"
                 , "description"
@@ -10,6 +10,11 @@
                 "name"
                 , "description"
                 , "instructions"
+            ]
+            , "units": [
+                "name"
+                , "abbreviation"
+                , "base"
             ]
         }
     }

@@ -1,4 +1,4 @@
-from app.models import Category, Unit, Recipe, Ingredient, RecipeIngredient
+from app.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
 from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
                         , RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY\
                         , RECIPE_COMPOSITION_SNAPSHOT_QUERY
@@ -18,11 +18,11 @@ crud_router = APIRouter()
 
 
 query_switch = {
-    'category': CATEGORY_QUERY
-    , 'unit': UNIT_QUERY
-    , 'recipe': RECIPE_QUERY
-    , 'ingredient': INGREDIENT_QUERY
-    , 'recipe_ingredient': RECIPE_INGREDIENT
+    'categories': CATEGORY_QUERY
+    , 'units': UNIT_QUERY
+    , 'recipes': RECIPE_QUERY
+    , 'ingredients': INGREDIENT_QUERY
+    , 'recipe_ingredients': RECIPE_INGREDIENT
     , 'recipe_composition_empty': RECIPE_COMPOSITION_EMPTY_QUERY
     , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_QUERY
     , 'recipe_composition_snapshot': RECIPE_COMPOSITION_SNAPSHOT_QUERY
@@ -31,12 +31,30 @@ query_switch = {
 callable_queries = [RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY]
 
 table_switch = {
-    'category': Category
-    , 'unit': Unit
-    , 'recipe': Recipe
-    , 'ingredient': Ingredient
-    , 'recipe_ingredient': RecipeIngredient
+    'categories': Categories
+    , 'units': Units
+    , 'recipes': Recipes
+    , 'ingredients': Ingredients
+    , 'recipe_ingredients': RecipeIngredients
 }
+
+
+@crud_router.get("/crud/maps")
+async def crud_maps(response: Response) -> JSONResponse:
+    """
+    Returns the local maps.json file.
+    """
+
+    try:
+        status_code = 200
+        with open('app/maps.json', 'r') as f:
+            json_data = json.load(f)
+    except Exception as e:
+        db.logger.error(f"Could not load maps.json file. Error: {e}")
+        json_data = {}
+        status_code = 400
+
+    return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
 
 
 @crud_router.post("/crud/insert", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

@@ -12,14 +12,14 @@ class DatetimeModel(SQLModel):
     created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
 
-class Category(DatetimeModel, table=True):
+class Categories(DatetimeModel, table=True):
     __tablename__ = 'categories'
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(default=None, regex=REGEX_WORDS)
     type: str = Field(default=None, regex=REGEX_WORDS)
 
-class Unit(DatetimeModel, table=True):
+class Units(DatetimeModel, table=True):
     __tablename__ = 'units'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -27,7 +27,7 @@ class Unit(DatetimeModel, table=True):
     abbreviation: str = Field(default=None, regex=REGEX_WORDS)
     base: int = Field(default=None)
 
-class Recipe(DatetimeModel, table=True):
+class Recipes(DatetimeModel, table=True):
     __tablename__ = 'recipes'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -36,7 +36,7 @@ class Recipe(DatetimeModel, table=True):
     period: str = Field(default=None, regex=REGEX_WORDS)
     type: str = Field(default=None, regex=REGEX_WORDS)
 
-class Ingredient(DatetimeModel, table=True):
+class Ingredients(DatetimeModel, table=True):
     __tablename__ = 'ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -44,7 +44,7 @@ class Ingredient(DatetimeModel, table=True):
     description: str = Field(default=None)
     type: str = Field(default=None, regex=REGEX_WORDS)
 
-class RecipeIngredient(DatetimeModel, table=True):
+class RecipeIngredients(DatetimeModel, table=True):
     __tablename__ = 'recipe_ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)
