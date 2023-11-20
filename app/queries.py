@@ -24,6 +24,7 @@ RECIPE_QUERY = select(
     Recipes.description.label('description'),
     Recipes.period.label('period'),
     Recipes.type.label('type'),
+    Recipes.presentation.label('presentation'),
     Recipes.created_at.label('created_at'),
     Recipes.updated_at.label('updated_at'),
 ).order_by(Recipes.id)
@@ -63,7 +64,6 @@ RECIPE_COMPOSITION_EMPTY_QUERY = select(
     Ingredients.type.label('type'),
     literal(0).label('quantity'),
     literal(None).label('id_unit'),
-    literal(None).label('unit'),
 ).select_from(
     Ingredients
 ).outerjoin(
@@ -90,10 +90,6 @@ RECIPE_COMPOSITION_LOADED_QUERY = lambda id_recipe: select(
         [(RecipeIngredients.id_recipe == id_recipe, Units.id)],
         else_=None
     ).label('id_unit'),
-    case(
-        [(RecipeIngredients.id_recipe == id_recipe, Units.name)],
-        else_=None
-    ).label('unit'),
 ).select_from(
     Ingredients
 ).outerjoin(
@@ -118,10 +114,6 @@ RECIPE_COMPOSITION_SNAPSHOT_QUERY = lambda id_recipe: select(
         [(RecipeIngredients.id_recipe == id_recipe, Units.id)],
         else_=None
     ).label('id_unit'),
-    case(
-        [(RecipeIngredients.id_recipe == id_recipe, Units.name)],
-        else_=None
-    ).label('unit'),
 ).select_from(
     Ingredients
 ).outerjoin(

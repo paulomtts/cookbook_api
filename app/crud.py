@@ -228,8 +228,7 @@ async def crud_insert_bulk(response: Response, table_name: str = None, data: dic
     """
 
     table_cls = table_switch[table_name]
-    data_list = data.get('json_data', [])
-    print(data_list)
+    data_list = [row for _, row in data.items()]
 
     messages = {
         'client': f"Succesfully inserted data in {table_name.capitalize()}."

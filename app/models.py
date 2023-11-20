@@ -35,6 +35,7 @@ class Recipes(DatetimeModel, table=True):
     description: str = Field(default=None)
     period: str = Field(default=None, regex=REGEX_WORDS)
     type: str = Field(default=None, regex=REGEX_WORDS)
+    presentation: str = Field(default=None, regex=REGEX_WORDS)
 
 class Ingredients(DatetimeModel, table=True):
     __tablename__ = 'ingredients'

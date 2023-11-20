@@ -30,6 +30,7 @@ CREATE TABLE recipes (
     description VARCHAR(255),
     period VARCHAR(45),
     type VARCHAR(45),
+    presentation VARCHAR(45),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

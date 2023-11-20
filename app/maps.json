@@ -9,7 +9,7 @@
             , "categories": [
                 "name"
                 , "description"
-                , "instructions"
+                , "type"
             ]
             , "units": [
                 "name"
