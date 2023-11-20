@@ -30,7 +30,7 @@ class DBClient():
 
         # self.jobs = {}
         # self.thread = threading.Thread(target=self._manage_jobs)
-        # self.thread.daemon = True  # Make the thread a daemon so it doesn't block program exit
+        # self.thread.daemon = True  # reason: daemon threads don't block program exit
         # self.thread.start()
 
 
