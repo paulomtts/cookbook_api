@@ -4,18 +4,56 @@ from sqlalchemy.orm import sessionmaker
 from sqlmodel import and_
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 
-import threading
-import datetime
+from app.queue import JobQueue
+from collections import namedtuple
+from uuid import uuid4
 
-
+            
 STATUS_DICT = {
     200: status.HTTP_200_OK
-    , 201: status.HTTP_201_CREATED
     , 204: status.HTTP_204_NO_CONTENT
     , 400: status.HTTP_400_BAD_REQUEST
-    , 404: status.HTTP_404_NOT_FOUND
     , 500: status.HTTP_500_INTERNAL_SERVER_ERROR
     , 503: status.HTTP_503_SERVICE_UNAVAILABLE
+}
+
+Error = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
+ERROR_MAP = {
+    IntegrityError: Error(
+        status.HTTP_400_BAD_REQUEST
+        , "Integrity error."
+        , "Attempted to breach database constraints."
+    )
+    
+    , ProgrammingError: Error(
+        status.HTTP_500_INTERNAL_SERVER_ERROR
+        , "Statement error."
+        , "Attempted to perform a bad statement."
+    )
+    
+    , OperationalError: Error(
+        status.HTTP_503_SERVICE_UNAVAILABLE
+        , "Database is unavailable."
+        , "Could not reach the database."
+    )
+    
+    , InternalError: Error(
+        status.HTTP_500_INTERNAL_SERVER_ERROR
+        , "Database error."
+        , "An internal error ocurred in the database. Please contact the dabatase administrator."
+    )
+    
+    , ValueError: Error(
+        status.HTTP_400_BAD_REQUEST
+        , "Bad request."
+        , "Incoming data did not pass validation."
+    )
+    
+    , Exception: Error(
+        status.HTTP_500_INTERNAL_SERVER_ERROR
+        , "Internal server error."
+        , "An unknown error occurred while interacting with the database."
+    )
 }
 
 class DBClient():
@@ -27,11 +65,7 @@ class DBClient():
         self.session = Session()
 
         self.logger = logger
-
-        # self.jobs = {}
-        # self.thread = threading.Thread(target=self._manage_jobs)
-        # self.thread.daemon = True  # reason: daemon threads don't block program exit
-        # self.thread.start()
+        self.queue = JobQueue()
 
 
     def __del__(self):
@@ -39,64 +73,24 @@ class DBClient():
         Automatically close the session and release resources when the DBClient object is about to be destroyed.
         """
         try:
-            self.close()
+            self.session.rollback() # ATTENTION: not yet tested
+            self.logger.info(f"Uncommitted changes were rolled back.")
+            self.session.close()
         except AttributeError:
             pass  # In case close() method is already called or doesn't exist
 
-    def _manage_jobs(self):
-        """
-        Manage nested jobs' timeouts.
-        """
-        while True:
-            current_time = datetime.datetime.now()  
-            keys_to_delete = []
 
-            for job_uuid, job in self.jobs.items():
-                start_time = datetime.datetime.strptime(job['start_time'], '%Y-%m-%d %H:%M:%S')
-
-                if current_time - start_time >= datetime.timedelta(seconds=10):
-                    keys_to_delete.append(job_uuid)
-
-            for key in keys_to_delete:
-                del self.jobs[key]
-
-    def build_job(self, uuid):
-        """
-        Build and insert a new job.
-        """
-        new_job = {
-            'start_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            , 'tasks': []
-        }
-        self.jobs[uuid] = new_job
-    
-
-    def insert_task(self, uuid, task):
-        """
-        Insert a task into an existing job.
-        """
-        job = self.jobs.get(uuid)
-        if job:
-            job['tasks'].append(task)
-
-
-    def execute_job(self, uuid, messages: list = None):
-        """
-        Execute all tasks in a job.
-        """
-        job = self.jobs.pop(uuid, None)
-        if job:
-            return self.nested_touch(job['tasks'], messages)
-
-
-    def insert(self, table_object, messages: dict = None):
+    def insert(self, table_object, messages: dict = None, merge = True):
         """
         Session-based insert.
         """
         if hasattr(table_object, 'updated_at'):
             delattr(table_object, 'updated_at') # reason: update this timestamp
 
-        fn = lambda: self.session.merge(table_object)
+        if merge:
+            fn = lambda: self.session.merge(table_object)
+        else:
+            fn = lambda: self.session.add(table_object)
         result, status_code, message = self.touch(fn, [], messages)
         return result, status_code, message
 
@@ -138,6 +132,26 @@ class DBClient():
         return result, status_code, message
 
 
+    def bulk_update(self, table_cls, pairings: list[tuple], messages: dict = None):
+        """
+        Session-based update. Note: This uses nested transactions.
+        """
+
+        uuid = uuid4()
+        self.build_job(uuid)
+
+        for filters, attributes in pairings:
+            fn = lambda: self.session.query(table_cls).filter(and_(*filters)).update(attributes)
+            self.insert_task(uuid, fn, messages)
+
+        job_results = self.execute_job(uuid) 
+
+        if type(job_results) != list:
+            return job_results.result, job_results.status_code, job_results.client_message
+        else:
+            return [job.result for job in job_results], status.HTTP_200_OK, "Bulk update was succesful."
+
+
     def delete(self, table_cls, filters: dict, messages: dict = None):
         """
         Session-based delete.
@@ -149,7 +163,14 @@ class DBClient():
         return result, status_code, message  
 
 
-    def touch(self, func, args: list = None, messages: dict = None, is_select=False) -> tuple:       
+    def touch(self, func, args: list = None, messages: dict = None, is_select=False) -> tuple:
+        """
+        Perform a single transaction. This method is used to wrap all CRUD operations.
+        Autocommit is enabled by default, but can be disabled by setting commit=False.
+        * Note: only disable commit when you are sure that you will commit the changes later.
+
+        """
+
         if args is None: args = [] # reason: https://stackoverflow.com/questions/1132941/least-astonishment-and-the-mutable-default-argument
         if messages is None: messages = {}
         
@@ -165,7 +186,7 @@ class DBClient():
             if not is_select:
                 self.session.commit()
 
-            if is_select and not result: # necessary for cases where you want to know that no results were found
+            if is_select and getattr(result, 'empty', True): # necessary for cases where you want to know that no results were found
                 status_code = 204
                 client_message = "The resource was found but had no data stored."
                 self.logger.warning(f"Table was found but had no rows.")
@@ -175,113 +196,57 @@ class DBClient():
             if logger_message:
                 self.logger.debug(logger_message)
 
-        except IntegrityError as error:
+        except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, Exception) as error:
             self.session.rollback()
-            status_code = 400
-            client_message = "Integrity error."
-            self.logger.error(f"Attempted to breach database constraints. Message:\n\n {error}.\n")
-        except ProgrammingError as error:
-            status_code = 500
-            client_message = "Statement error."
-            self.logger.error(f"Attempted to perform a bad statement. Message:\n\n {error}.\n")
-        except OperationalError as error:
-            status_code = 503
-            client_message = "Database is unavailable."
-            self.logger.error(f"Could not reach the database. Message:\n\n {error}.\n")
-        except InternalError as error:
-            self.session.rollback()
-            status_code = 500
-            client_message = "Database error."
-            self.logger.error(f"An internal error ocurred in the database. Please contact the dabatase administrator. Message:\n\n {error}.\n")
-        except ValueError as error:
-            self.session.rollback()
-            status_code = 400
-            client_message = "Bad request."
-            self.logger.warning(f"Incoming data did not pass validation. Message:\n\n {error}.\n")
-        except Exception as error:
-            self.session.rollback()
-            status_code = 500
-            client_message = "Internal server error."
-            self.logger.error(f"An unknown error occurred while interacting with the database. Message:\n\n {error}.\n")
-        finally:
-            self.session.close()
+
+            error_tuple = ERROR_MAP.get(type(error))
+
+            status_code = error_tuple.status_code
+            client_message = error_tuple.client_message
+            logger_message = error_tuple.logger_message
+
+            self.logger.error(f"{logger_message} Message:\n\n {error}.\n")
 
         status_code = STATUS_DICT[status_code]
         return result, status_code, client_message
     
 
-    def nested_touch(self, tasks: list, messages: list = None):
+    def multi_touch(self, task_list: list) -> tuple:
         """
-        Execute a list of tasks in a nested transaction.
+        Execute a list of tasks and commit them all at once. If any of 
+        the tasks fail, the entire transaction is rolled back.
         """
 
+        JobResult = namedtuple('JobResult', ['result', 'status_code', 'client_message'])
         results_list = []       
         exceptions_occurred = False
 
-        self.session.begin_nested()
-
         try:
-            for id, task in enumerate(tasks):
-                result = None
+            for task in task_list:
                 status_code = 200
 
-                client_message = messages[id].get('client')
-                logger_message = messages[id].get('logger')
-
                 result = task()  # Execute the task
-
-                if not result:
-                    status_code = 204
-                    client_message = "The resource was found but had no data stored."
-                    self.logger.warning(f"Table was found but had no rows.")
-
-                if logger_message:
-                    self.logger.debug(logger_message)
                 
-                new_tuple = (result, STATUS_DICT[status_code], client_message)
+                new_tuple = JobResult(result, STATUS_DICT[status_code], None)
                 results_list.append(new_tuple)
 
             self.session.commit()
 
-        except IntegrityError as error:
+        except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, Exception) as error:
             self.session.rollback()
-            status_code = 400
-            client_message = "Integrity error."
-            self.logger.error(f"Attempted to breach database constraints. Message:\n\n {error}.\n")
-            exceptions_occurred = True
-        except ProgrammingError as error:
-            self.session.rollback()
-            status_code = 500
-            client_message = "Statement error."
-            self.logger.error(f"Attempted to perform a bad statement. Message:\n\n {error}.\n")
-            exceptions_occurred = True
-        except OperationalError as error:
-            self.session.rollback()
-            status_code = 503
-            client_message = "Database is unavailable."
-            self.logger.error(f"Could not reach the database. Message:\n\n {error}.\n")
-            exceptions_occurred = True
-        except InternalError as error:
-            self.session.rollback()
-            status_code = 500
-            client_message = "Database error."
-            self.logger.error(f"An internal error ocurred in the database. Please contact the dabatase administrator. Message:\n\n {error}.\n")
-            exceptions_occurred = True
-        except ValueError as error:
-            self.session.rollback()
-            status_code = 400
-            client_message = "Bad request."
-            self.logger.warning(f"Incoming data did not pass validation. Message:\n\n {error}.\n")
-            exceptions_occurred = True
-        except Exception as error:
-            self.session.rollback()
-            status_code = 500
-            client_message = "Internal server error."
-            self.logger.error(f"An unknown error occurred while interacting with the database. Message:\n\n {error}.\n")
+
+            error_tuple = ERROR_MAP.get(type(error))
+
+            status_code = error_tuple.status_code
+            client_message = error_tuple.client_message
+            logger_message = error_tuple.logger_message
+
+            self.logger.error(f"{logger_message} Message:\n\n {error}.\n")
             exceptions_occurred = True
         finally:
-            self.session.close()
             if exceptions_occurred:
-                return [(None, STATUS_DICT[status_code], client_message)]
+                client_message = client_message + " Some tasks failed. No changes were persisted."
+                return JobResult(None, STATUS_DICT[status_code], client_message)
+                
 
         return results_list

@@ -27,7 +27,6 @@ query_switch = {
     , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_QUERY
     , 'recipe_composition_snapshot': RECIPE_COMPOSITION_SNAPSHOT_QUERY
 }
-
 callable_queries = [RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY]
 
 table_switch = {
@@ -40,7 +39,7 @@ table_switch = {
 
 
 @crud_router.get("/crud/maps")
-async def crud_maps(response: Response) -> JSONResponse:
+async def crud__maps(response: Response) -> JSONResponse:
     """
     Returns the local maps.json file.
     """
@@ -49,6 +48,8 @@ async def crud_maps(response: Response) -> JSONResponse:
         status_code = 200
         with open('app/maps.json', 'r') as f:
             json_data = json.load(f)
+
+        db.logger.info(f"Successfully loaded maps.json file.")
     except Exception as e:
         db.logger.error(f"Could not load maps.json file. Error: {e}")
         json_data = {}
@@ -57,8 +58,9 @@ async def crud_maps(response: Response) -> JSONResponse:
     return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
 
 
-@crud_router.post("/crud/insert", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-async def crud_insert(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+# @crud_router.post("/crud/insert", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@crud_router.post("/crud/insert")
+async def crud__insert(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
 
     """
     Insert a new row into a table. Data example:
@@ -80,7 +82,7 @@ async def crud_insert(response: Response, table_name: str = None, data: dict = B
 
 
 @crud_router.post("/crud/select")
-async def crud_select(response: Response, table_name: str = None, structured: bool = False, data: dict = Body(...)) -> JSONResponse:
+async def crud__select(response: Response, table_name: str = None, structured: bool = False, data: dict = Body(...)) -> JSONResponse:
     """
     Query the database for a table. The statements used here are meant to make
     tables readable, often joining with other tables so as to provide more than
@@ -110,7 +112,9 @@ async def crud_select(response: Response, table_name: str = None, structured: bo
 
     * In case of no filters, simply omit the "filters" key.
     """
+    df: pd.DataFrame
     
+
     statement = query_switch[table_name]
 
     if statement in callable_queries:
@@ -140,29 +144,17 @@ async def crud_select(response: Response, table_name: str = None, structured: bo
     if conditions:
         statement = statement.where(and_(*conditions))
 
-    read_data = lambda statement: db.session.execute(statement).fetchall()
+    read_data = lambda: pd.read_sql(statement, db.engine)
     messages = {
         'client': f"{table_name.replace('_', ' ').capitalize()}s retrieved."
-        , 'logger': f"Querying <{table_name}s> was succesful!"
+        , 'logger': f"Querying <{table_name}> was succesful! Filters: {filters}"
     }
-    results, status_code, message = db.touch(read_data, [statement], messages, True)
+    df, status_code, message = db.touch(read_data, messages=messages, is_select=True)
 
-    results = [dict(row) for row in results]
-    if results:
-        json_data = json.dumps(results, default=str)
-    else:
-        json_data = json.dumps([{}], default=str)
-
-    if results and structured:
-        df = pd.DataFrame(results, columns=statement.columns.keys())
-        df.index = df['id']
-
-        if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
-        if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
+    if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
+    if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
         
-        data_dict = df.to_dict(orient='index')
-        json_data = json.dumps(data_dict, indent=4)
-
+    json_data = df.to_json(orient='records')
 
     if status_code == 204:
         return Response(status_code=status_code, headers=response.headers)
@@ -171,7 +163,7 @@ async def crud_select(response: Response, table_name: str = None, structured: bo
 
 
 @crud_router.post("/crud/update")
-async def crud_update(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud__update(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Insert a new row into a table.
     """
@@ -188,8 +180,26 @@ async def crud_update(response: Response, table_name: str = None, data: dict = B
     return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
 
 
+@crud_router.post("/crud/update_bulk")
+async def crud__update_build(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+    """
+    Insert a new row into a table.
+    """
+
+    table_cls = table_switch[table_name]
+    pairings = [(table_cls.id == row.pop('id'), row) for row in data.values()]
+
+    messages = {
+        'client': f"{table_name.capitalize()} updated."
+        , 'logger': f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
+    }
+    _, status_code, message = db.bulk_update(table_cls, pairings, messages)
+
+    return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
+
+
 @crud_router.post("/crud/delete")
-async def crud_delete(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud__delete(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Delete a row from a table. Filters example:
     >>> {
@@ -214,7 +224,7 @@ async def crud_delete(response: Response, table_name: str = None, data: dict = B
 
 
 @crud_router.post("/crud/insert_bulk")
-async def crud_insert_bulk(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud__insert_bulk(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Insert multiple rows into a table. Data example:
     >>> [

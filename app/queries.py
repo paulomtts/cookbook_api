@@ -63,40 +63,36 @@ RECIPE_COMPOSITION_EMPTY_QUERY = select(
     Ingredients.description.label('description'),
     Ingredients.type.label('type'),
     literal(0).label('quantity'),
-    literal(None).label('id_unit'),
+    literal(None).label('id_unit')
 ).select_from(
     Ingredients
 ).outerjoin(
     RecipeIngredients, RecipeIngredients.id_ingredient == Ingredients.id
+).group_by(
+    Ingredients.id
 ).order_by(Ingredients.name)
 
 
 RECIPE_COMPOSITION_LOADED_QUERY = lambda id_recipe: select(
     Ingredients.id.label('id'),
-    case(
-        [(RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.id)], 
-        else_=None
-    ).label('id_recipe_ingredient'),
+    func.MAX(case((RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.id), else_=None)).label('id_recipe_ingredient'),
     literal(id_recipe).label('id_recipe'),
     Ingredients.id.label('id_ingredient'),
     Ingredients.name.label('name'),
     Ingredients.description.label('description'),
     Ingredients.type.label('type'),
-    case(
-        [(RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.quantity)],
-        else_=0
-    ).label('quantity'),
-    case(
-        [(RecipeIngredients.id_recipe == id_recipe, Units.id)],
-        else_=None
-    ).label('id_unit'),
+    func.COALESCE(func.MAX(case((RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.quantity), else_=None)), 0).label('quantity'),
+    func.MAX(case((RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.id_unit), else_=None)).label('id_unit')
 ).select_from(
     Ingredients
 ).outerjoin(
-    RecipeIngredients, RecipeIngredients.id_ingredient == Ingredients.id
+        RecipeIngredients, RecipeIngredients.id_ingredient == Ingredients.id
 ).outerjoin(
-    Units, Units.id == RecipeIngredients.id_unit
+        Units, Units.id == RecipeIngredients.id_unit
+).group_by(
+        Ingredients.id
 ).order_by(Ingredients.name)
+
 
 RECIPE_COMPOSITION_SNAPSHOT_QUERY = lambda id_recipe: select(
     Ingredients.id.label('id'),
@@ -107,13 +103,13 @@ RECIPE_COMPOSITION_SNAPSHOT_QUERY = lambda id_recipe: select(
     Ingredients.description.label('description'),
     Ingredients.type.label('type'),
     case(
-        [(RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.quantity)],
+        (RecipeIngredients.id_recipe == id_recipe, RecipeIngredients.quantity),
         else_=0
     ).label('quantity'),
     case(
-        [(RecipeIngredients.id_recipe == id_recipe, Units.id)],
+        (RecipeIngredients.id_recipe == id_recipe, Units.id),
         else_=None
-    ).label('id_unit'),
+    ).label('id_unit')
 ).select_from(
     Ingredients
 ).outerjoin(

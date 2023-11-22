@@ -1,11 +1,13 @@
 from setup import app
 from app.crud import crud_router
+from app.routes import routes_router
 
 from fastapi.responses import JSONResponse
 import uvicorn
 
 
 app.include_router(crud_router)
+app.include_router(routes_router)
 
 
 @app.get('/health')
@@ -14,4 +16,6 @@ async def azuretest():
 
 
 if __name__ == '__main__':
-    uvicorn.run('main:app', reload=True, port=8000)
+    uvicorn.run('main:app', reload=True, reload_dirs=[
+        'app'
+    ], port=8000)
