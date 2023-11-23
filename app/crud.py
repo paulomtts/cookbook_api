@@ -144,20 +144,27 @@ async def crud__select(response: Response, table_name: str = None, structured: b
     if conditions:
         statement = statement.where(and_(*conditions))
 
+
     read_data = lambda: pd.read_sql(statement, db.engine)
     messages = {
         'client': f"{table_name.replace('_', ' ').capitalize()}s retrieved."
         , 'logger': f"Querying <{table_name}> was succesful! Filters: {filters}"
     }
+
     df, status_code, message = db.touch(read_data, messages=messages, is_select=True)
+
+
+    if status_code != 200:
+        return JSONResponse(status_code=status_code, content={'message': message}, headers=response.headers)
+
+    if status_code == 204:
+        return Response(status_code=status_code, headers=response.headers)
+    
 
     if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
     if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
         
     json_data = df.to_json(orient='records')
-
-    if status_code == 204:
-        return Response(status_code=status_code, headers=response.headers)
 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 

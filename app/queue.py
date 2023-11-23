@@ -4,7 +4,6 @@ import time
 import heapq
 
 
-
 class JobQueue:
     def __init__(self):
         self.jobs = []

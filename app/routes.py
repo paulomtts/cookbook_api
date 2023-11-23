@@ -1,12 +1,8 @@
-from app.models import  Recipes, RecipeIngredients
-from setup import db
-
-
 from fastapi import APIRouter, Response, Body
 from fastapi.responses import JSONResponse, Response
 
-from uuid import uuid4
-import copy
+from app.models import  Recipes, RecipeIngredients
+from setup import db
 
 
 routes_router = APIRouter()
@@ -28,11 +24,9 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
         message = "Could not find form data in request body."
         return JSONResponse(status_code=400, content={'message': message}, headers=response.headers)
     
-    # 1) create tasks
-    uuid = uuid4()
     form_object = Recipes(**form_data)
     
-    task_list = [
+    tasks = [
         lambda: db.session.add(form_object)
         , lambda: db.session.flush()
         , *[lambda: db.session.add(RecipeIngredients(**{**row, 'id_recipe': form_object.id})) for row in insert_rows]
@@ -40,14 +34,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
         , *[lambda: db.session.delete(RecipeIngredients(**row)) for row in delete_rows]
     ]
 
-    # 2) create job
-    db.queue.add_job(uuid, task_list, 10)
-
-
-    # 3) run job
-    job_results = db.queue.execute_job(uuid, db.multi_touch)
-
-    db.queue.sleep()
+    job_results = db.touch(tasks)
 
     if type(job_results) != list:
         status_code = job_results.status_code
