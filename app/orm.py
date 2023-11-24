@@ -58,45 +58,45 @@ STATUS_DICT = {
     , 503: status.HTTP_503_SERVICE_UNAVAILABLE
 }
 
-Error = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
+ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
 ERROR_MAP = {
-    IntegrityError: Error(
+    IntegrityError: ErrorObject(
         status.HTTP_400_BAD_REQUEST
         , "Integrity error."
         , "Attempted to breach database constraints."
     )
     
-    , ProgrammingError: Error(
+    , ProgrammingError: ErrorObject(
         status.HTTP_500_INTERNAL_SERVER_ERROR
         , "Statement error."
         , "Attempted to perform a bad statement."
     )
     
-    , OperationalError: Error(
+    , OperationalError: ErrorObject(
         status.HTTP_503_SERVICE_UNAVAILABLE
         , "Database is unavailable."
         , "Could not reach the database."
     )
     
-    , InternalError: Error(
+    , InternalError: ErrorObject(
         status.HTTP_500_INTERNAL_SERVER_ERROR
         , "Database error."
         , "An internal error ocurred in the database. Please contact the dabatase administrator."
     )
     
-    , ValueError: Error(
+    , ValueError: ErrorObject(
         status.HTTP_400_BAD_REQUEST
         , "Bad request."
         , "Incoming data did not pass validation."
     )
     
-    , StaleDataError: Error(
+    , StaleDataError: ErrorObject(
         status.HTTP_400_BAD_REQUEST
         , "Stale data."
         , "One or more rows involved in the operation did could not be found or did not match the expected values."
     )
 
-    , Exception: Error(
+    , Exception: ErrorObject(
         status.HTTP_500_INTERNAL_SERVER_ERROR
         , "Internal server error."
         , "An unknown error occurred while interacting with the database."
@@ -124,22 +124,6 @@ class DBManager():
             self.session.close()
         except AttributeError:
             pass  # In case close() method is already called or doesn't exist
-
-
-    def _parse_returning(self, content: list):
-        """
-        Parse the result of a query with a RETURNING clause.
-        """
-        assert isinstance(content, list), f"Content must be type <list>. Instead, it is type <{type(content).__name__}>."
-
-        parsed_content = []
-        for row in content:
-            keys = [key for key in row.keys()]
-            values = [str(value) for value in row.fetchall()[0]]
-
-            parsed_content.append(dict(zip(keys, values)))
-
-        return parsed_content
 
 
     def query(self, table_cls, filters: list = None, messages: Messages = None, order_by = None):
@@ -195,6 +179,20 @@ class DBManager():
         return self.touch(task_list, messages)
 
 
+    def delete(self, table_cls, filters: dict, messages: dict = None):
+        """
+        Delete a list of ORM objects. This method uses Postgres' RETURNING clause to return the deleted objects.
+        """
+        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
+        statement = delete(table_cls).where(*conditions)\
+                                     .returning(table_cls.__table__.columns) 
+
+        fn = lambda statement: self.session.execute(statement)
+        task = Task(fn, [statement])
+
+        return self.touch(task, messages)
+
+
     def upsert(self, table_cls, data_list: List[dict], messages: Messages = None):
         """
         Attempt to insert a list of dictionaries as rows into a table. If there is 
@@ -219,20 +217,6 @@ class DBManager():
         return self.touch(task_list, messages)
 
 
-    def delete(self, table_cls, filters: dict, messages: dict = None):
-        """
-        Delete a list of ORM objects. This method uses Postgres' RETURNING clause to return the deleted objects.
-        """
-        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
-        statement = delete(table_cls).where(*conditions)\
-                                     .returning(table_cls.__table__.columns) 
-
-        fn = lambda statement: self.session.execute(statement)
-        task = Task(fn, [statement])
-
-        return self.touch(task, messages)
-
-
     def touch(self, task_list: Union[Task, List[Task]], messages: Messages = None, is_select=False, no_parse = False) -> Result:
         """
         Perform a single transaction. This method is used to wrap all CRUD operations.
@@ -247,6 +231,10 @@ class DBManager():
         
         content = []
 
+        client_message = 'Operation successful.'
+        if messages and messages.client:
+            client_message = messages.client
+
         try:
             for task in task_list:
 
@@ -257,7 +245,7 @@ class DBManager():
                     self.logger.warning(f"Table was found but had no rows.")
                     return [], STATUS_DICT[204], "The resource was found but had no data stored."
 
-                if messages.logger: 
+                if messages and messages.logger: 
                     self.logger.debug(messages.logger)
 
                 content.append(value)
@@ -271,11 +259,26 @@ class DBManager():
             error = ERROR_MAP.get(type(e))
             self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
 
-            return Result([], STATUS_DICT[error.status_code], error.client_message)
-
+            return Result([], error.status_code, error.client_message)
         
         if no_parse:
-            return Result([], STATUS_DICT[200], messages.client)
+            return Result([], STATUS_DICT[200], client_message)
 
         parsed_content = self._parse_returning(content)
-        return Result(parsed_content, STATUS_DICT[200], messages.client)
+        return Result(parsed_content, STATUS_DICT[200], client_message)
+    
+
+    def _parse_returning(self, content: list):
+        """
+        Parse the result of a query with a RETURNING clause.
+        """
+        assert isinstance(content, list), f"Content must be type <list>. Instead, it is type <{type(content).__name__}>."
+
+        parsed_content = []
+        for row in content:
+            keys = [key for key in row.keys()]
+            values = [str(value) for value in row.fetchall()[0]]
+
+            parsed_content.append(dict(zip(keys, values)))
+
+        return parsed_content
