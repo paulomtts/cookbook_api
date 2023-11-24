@@ -182,7 +182,7 @@ async def crud__update(response: Response, table_name: str = None, data: dict = 
         'client': f"{table_name.capitalize()} updated."
         , 'logger': f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
     }
-    _, status_code, message = db.update(table_cls, [table_cls.id == row_id], data, messages)
+    _, status_code, message = db.update_bulk(table_cls, [table_cls.id == row_id], data, messages)
 
     return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
 
@@ -200,7 +200,7 @@ async def crud__update_build(response: Response, table_name: str = None, data: d
         'client': f"{table_name.capitalize()} updated."
         , 'logger': f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
     }
-    _, status_code, message = db.bulk_update(table_cls, pairings, messages)
+    _, status_code, message = db.update_bulk(table_cls, pairings, messages)
 
     return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
 

@@ -1,4 +1,4 @@
-from app.orm import DBClient
+from app.orm import DBManager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -47,4 +47,4 @@ app.add_middleware( # necessary to allow requests from local services
     allow_credentials=True,
 )
 
-db = DBClient('postgresql', 'postgres', 'postgres', 'localhost', '5432', 'postgres', 'cookbook', logger)
+db = DBManager('postgresql', 'postgres', 'postgres', 'localhost', '5432', 'postgres', 'cookbook', logger)
