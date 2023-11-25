@@ -26,11 +26,10 @@ async def azuretest():
     new_ingredient_4 = dict(name='Something else', description="This is a test ingredient", type='Test', updated_at=datetime.datetime.now())
     new_ingredient_5 = dict(name='Another test ingredient', description="This is a test ingredient", type='Test', updated_at=datetime.datetime.now())
 
-    # results = db.insert(Ingredients, [new_ingredient_4, new_ingredient_5], Messages(client='Submission successful!', logger='Insert successful'))
-    # results = db.update(Ingredients, [new_ingredient_1, new_ingredient_2], Messages(client='Submission successful!', logger='Update successful'))
-    # results = db.upsert(Ingredients, [new_ingredient_3], Messages(client='Submission successful!', logger='Upsert successful'))
-    # results = db.upsert(Ingredients, [new_ingredient_1, new_ingredient_3], Messages(client='Submission successful!', logger='Upsert successful'))
-    results = db.delete(Ingredients, {'id': [3]}, Messages(client='Submission successful!', logger='Delete successful'))
+    # results = db.insert(Ingredients, [new_ingredient_4, new_ingredient_5], Messages(client='Submission successful!', logger='Insert successful'), returning=False)
+    # results = db.update(Ingredients, [new_ingredient_1, new_ingredient_2], Messages(client='Submission successful!', logger='Update successful'), returning=False)
+    # results = db.upsert(Ingredients, [new_ingredient_1, new_ingredient_3], Messages(client='Submission successful!', logger='Upsert successful'), returning=False)
+    results = db.delete(Ingredients, {'id': [3]}, Messages(client='Submission successful!', logger='Delete successful'), returning=False)
 
     print(results.content)
     

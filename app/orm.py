@@ -142,19 +142,22 @@ class DBManager():
         return self.touch(task, messages, True)
 
 
-    def insert(self, table_cls, data_list: List[dict], messages: Messages = None):
+    def insert(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True):
         """
         Insert a list of dictionaries as rows in a table.
         """
-        statement = insert(table_cls).values(data_list).returning(table_cls.__table__.columns)
+        statement = insert(table_cls).values(data_list)
+
+        if returning:
+            statement = statement.returning(table_cls.__table__.columns)
 
         fn = lambda statement: self.session.execute(statement)
         task = Task(fn, [statement])
 
-        return self.touch(task, messages)
+        return self.touch(task, messages, no_parse=(not returning))
 
 
-    def update(self, table_cls, data_list: List[dict], messages: Messages = None):
+    def update(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True):
 
         assert isinstance(data_list, list), f"Data must be type <list>. Instead, it is type <{type(data_list).__name__}>."
 
@@ -169,31 +172,36 @@ class DBManager():
                 update(table_cls)
                 .where(*conditions)
                 .values(data)
-                .returning(table_cls.__table__.columns)
+                
             )
+
+            if returning:
+                statement = statement.returning(table_cls.__table__.columns)
 
             fn = lambda statement: self.session.execute(statement)
             task = Task(fn, [statement])
             task_list.append(task)
         
-        return self.touch(task_list, messages)
+        return self.touch(task_list, messages, no_parse=(not returning))
 
 
-    def delete(self, table_cls, filters: dict, messages: dict = None):
+    def delete(self, table_cls, filters: dict, messages: dict = None, returning: bool = True):
         """
         Delete a list of ORM objects. This method uses Postgres' RETURNING clause to return the deleted objects.
         """
         conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
-        statement = delete(table_cls).where(*conditions)\
-                                     .returning(table_cls.__table__.columns) 
+        statement = delete(table_cls).where(*conditions)
+        
+        if returning:
+            statement = statement.returning(table_cls.__table__.columns)
 
         fn = lambda statement: self.session.execute(statement)
         task = Task(fn, [statement])
 
-        return self.touch(task, messages)
+        return self.touch(task, messages, no_parse=(not returning))
 
 
-    def upsert(self, table_cls, data_list: List[dict], messages: Messages = None):
+    def upsert(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True):
         """
         Attempt to insert a list of dictionaries as rows into a table. If there is 
         a conflict with the primary key, update them instead. This method uses 
@@ -207,14 +215,16 @@ class DBManager():
         for data in data_list:
             statement = postgres_upsert(table_cls).values(data)\
                         .on_conflict_do_update(index_elements=[table_cls.id], set_=data)\
-                        .returning(table_cls.__table__.columns)
+            
+            if returning:
+                statement = statement.returning(table_cls.__table__.columns)
                         
             
             fn = lambda statement: self.session.execute(statement)
             task = Task(fn, [statement])
             task_list.append(task)
 
-        return self.touch(task_list, messages)
+        return self.touch(task_list, messages, no_parse=(not returning))
 
 
     def touch(self, task_list: Union[Task, List[Task]], messages: Messages = None, is_select=False, no_parse = False) -> Result:
