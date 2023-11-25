@@ -2,17 +2,28 @@ from fastapi import status
 from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
-from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 from sqlalchemy.orm.exc import StaleDataError
-from collections import namedtuple
+from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 
-from pydantic import BaseModel
 from typing import List, Literal, Union, Callable, Optional, Any
+from collections import namedtuple
+from pydantic import BaseModel
+from logging import Logger
+
 import pandas as pd
 
 
 
 class Task(BaseModel):
+    """
+    Represents a task to be executed.
+
+    Attributes:
+        - function (Callable): The function to be executed.
+        - args (Optional[List], optional): The arguments to be passed to the function. Defaults to None.
+        - mapping_cls (Optional[Any], optional): The mapping class for the task, to help Pandas order a returned dataframe's columns. Defaults to None.
+    """
+
     function: Callable
     args: Optional[List] = None
     mapping_cls: Optional[Any] = None
@@ -29,6 +40,15 @@ class Task(BaseModel):
         yield self.mapping_cls
 
 class Result(BaseModel):
+    """
+    Represents the result of an operation.
+
+    Attributes:
+        - content (List[pd.DataFrame]): The content of the result.
+        - status_code (Literal[200, 204, 400, 500, 503]): The status code of the result.
+        - client_message (str): The client message associated with the result.
+    """
+
     content: List[pd.DataFrame]
     status_code: Literal[200, 204, 400, 500, 503]
     client_message: str
@@ -113,8 +133,44 @@ ERROR_MAP = {
 }
 
 class DBManager():
+    """
+    A class that manages the database connection and provides methods for executing queries and operations on the database.
 
-    def __init__(self, dialect, user, password, address, port, database, schema, logger):
+    Args:
+        - dialect (str): The database dialect.
+        - user (str): The username for the database connection.
+        - password (str): The password for the database connection.
+        - address (str): The address of the database server.
+        - port (str): The port number for the database connection.
+        - database (str): The name of the database.
+        - schema (str): The schema to be used for the database connection.
+        - logger (Logger): The logger object for logging messages.
+
+    Attributes:
+        - engine (Engine): The SQLAlchemy engine object for the database connection.
+        - session (Session): The SQLAlchemy session object for executing database operations.
+        - logger (Logger): The logger object for logging messages.
+
+    Methods:
+        - query(table_cls, filters=None, messages=None, order_by=None, as_task_list=False): Executes a query on the specified table class with optional filters and ordering.
+        - insert(table_cls, data_list, messages=None, returning=True, as_task_list=False): Inserts data into the specified table.
+        - update(table_cls, data_list, messages=None, returning=True, as_task_list=False): Updates records in the database table.
+        - delete(table_cls, filters, messages=None, returning=True, as_task_list=False): Deletes records from the specified table based on the provided filters.
+        - upsert(table_cls, data_list, messages=None, returning=True, as_task_list=False): Attempts to insert data into the specified table, and updates the data if the insert fails because of a unique constraint violation.
+        - touch(task_list, messages=None, is_select=False, mapping_cls=None): Executes a series of tasks and returns the result, committing the changes if all tasks are successful.
+
+    Raises:
+        - IntegrityError: Raised when there is a violation of a unique constraint or foreign key constraint.
+        - ProgrammingError: Raised when there is an error in the SQL statement.
+        - OperationalError: Raised when there is an operational error in the database.
+        - InternalError: Raised when there is an internal error in the database.
+        - ValueError: Raised when there is an invalid value or argument.
+        - StaleDataError: Raised when there is a conflict with concurrent updates.
+        - IndexError: Raised when there is an index error.
+        - Exception: Raised for any other exception.
+    """
+
+    def __init__(self, dialect: str, user: str, password: str, address: str, port: str, database: str, schema: str, logger: Logger):
         self.engine = create_engine(f'{dialect}://{user}:{password}@{address}:{port}/{database}', connect_args={"options": f"-csearch_path={schema}"}, pool_pre_ping=True)
 
         Session = sessionmaker(bind=self.engine)
@@ -146,7 +202,7 @@ class DBManager():
             - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
 
         Returns:
-            `Task` or `Result`: `Task` object or a `Result` object containing the query results.
+            - `Task` or `Result`: `Task` object or a `Result` object containing the query results.
         """
 
         if filters is None: filters = []
@@ -177,7 +233,7 @@ class DBManager():
             - as_task_list (`bool`, optional): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
 
         Returns:
-            `Task`, `List[Task]` or `Result`: The task or list of tasks representing the insert operation, or a `Result` object containing the inserted data.
+            - `Task`, `List[Task]` or `Result`: The task or list of tasks representing the insert operation, or a `Result` object containing the inserted data.
         """
         statement = insert(table_cls).values(data_list)
 
@@ -205,7 +261,7 @@ class DBManager():
             - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
 
         Returns:
-           ` Union[List[Task], Any]`: If `as_task_list` is True, returns a list of update tasks. Otherwise, returns the result of `self.touch`.
+            - `Union[List[Task], Any]`: If `as_task_list` is True, returns a list of update tasks. Otherwise, returns the result of `self.touch`.
         """
 
         assert isinstance(data_list, list), f"Data must be type <list>. Instead, it is type <{type(data_list).__name__}>."
@@ -241,14 +297,14 @@ class DBManager():
         Delete records from the specified table based on the provided filters.
 
         Args:
-            table_cls (`class`): The table class representing the table to delete records from.
-            filters (`dict`): A dictionary containing the column names as keys and the values to filter on as values.
-            messages (`dict, optional`): A dictionary containing messages to be printed if succesful. Defaults to None.
-            returning (`bool, optional`): Whether to include the deleted records in the return value. Defaults to True.
-            as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (`class`): The table class representing the table to delete records from.
+            - filters (`dict`): A dictionary containing the column names as keys and the values to filter on as values.
+            - messages (`dict, optional`): A dictionary containing messages to be printed if succesful. Defaults to None.
+            - returning (`bool, optional`): Whether to include the deleted records in the return value. Defaults to True.
+            - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
 
         Returns:
-            `Task` or `list`: The deletion task or a `list` of deletion tasks, depending on the value of `as_task_list`.
+            - `Task` or `list`: The deletion task or a `list` of deletion tasks, depending on the value of `as_task_list`.
         """
         conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
         statement = delete(table_cls).where(*conditions)
@@ -270,14 +326,14 @@ class DBManager():
         Attempts to insert data into the specified table, and updates the data if the insert fails because of a unique constraint violation.
 
         Args:
-            table_cls (`class`): The table class.
-            data_list (`List[dict]`): A list of dictionaries containing the data to be upserted.
-            messages (`Messages`, optional): A dictionary containing messages to be printed if succesful. Defaults to None.
-            returning (`bool`, optional): Whether to return the upserted data. Defaults to True.
-            as_task_list (`bool`, optional): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (`class`): The table class.
+            - data_list (`List[dict]`): A list of dictionaries containing the data to be upserted.
+            - messages (`Messages`, optional): A dictionary containing messages to be printed if succesful. Defaults to None.
+            - returning (`bool`, optional): Whether to return the upserted data. Defaults to True.
+            - as_task_list (`bool`, optional): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
 
         Returns:
-            `Union[List[Task], Any]`: If `as_task_list` is True, returns a list of Task objects representing the upsert tasks.
+            - `Union[List[Task], Any]`: If `as_task_list` is True, returns a list of Task objects representing the upsert tasks.
             Otherwise, returns the result of the `touch` method.
         """
         task_list = []
@@ -299,15 +355,30 @@ class DBManager():
         return self.touch(task_list, messages)
 
 
-    def touch(self, task_list: Union[Task, List[Task]], messages: Messages = None, is_select=False, mapping_cls = None) -> Result:
+    def touch(self, task_list: Union[Task, List[Task]], messages: Messages = None, is_select: bool = False, mapping_cls = None) -> Result:
         """
-        Perform a single transaction. This method is used to wrap all CRUD operations.
-        Autocommit is enabled by default, but can be disabled by setting commit=False.
-        * Note: only disable commit when you are sure that you will commit the changes later.
-        This method returns a tuple containing the result, status code and client message,
-        or a list of tuples if multiple functions are passed.
-        """
+        Executes a series of tasks and returns the result, committing the changes if all tasks are successful. Should any of the tasks fail, 
+        the changes are rolled back, an error is raised and the according Result object is returned.
 
+        Args:
+            - task_list (`Union[Task, List[Task]]`): A single task or a list of tasks to be executed.
+            - messages (`Messages, optional`): An object containing messages for logging and client response. Defaults to None.
+            - is_select (`bool, optional`): Indicates whether the tasks are select queries. Defaults to False.
+            - mapping_cls (`Any, optional`): The class used for mapping the query result. Defaults to None.
+
+        Returns:
+            `Result`: The result of the executed tasks.
+
+        Raises:
+            - IntegrityError
+            - ProgrammingError
+            - OperationalError
+            - InternalError
+            - ValueError
+            - StaleDataError
+            - IndexError
+            - Exception
+        """
         if type(task_list) != list: task_list = [task_list]
        
         content_list = []
