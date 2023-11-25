@@ -64,7 +64,10 @@ class Result(BaseModel):
         yield self.status_code
         yield self.client_message
 
-class Messages(BaseModel):
+class SuccessMessages(BaseModel):
+    """
+    A dummy class for storing success messages for logging and client response.
+    """
     client: Optional[str] = ''
     logger: Optional[str] = ''
 
@@ -190,7 +193,7 @@ class DBManager():
             pass  # In case close() method is already called or doesn't exist
 
 
-    def query(self, table_cls, filters: list = None, messages: Messages = None, order_by: List[Column] = None, as_task_list: bool = False):
+    def query(self, table_cls, filters: list = None, messages: SuccessMessages = None, order_by: List[Column] = None, as_task_list: bool = False):
         """
         Executes a query on the specified table class with optional filters and ordering.
 
@@ -221,7 +224,7 @@ class DBManager():
         return self.touch(task, messages, True)
 
 
-    def insert(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True, as_task_list: bool = False):
+    def insert(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
         """
         Insert data into the specified table.
 
@@ -249,7 +252,7 @@ class DBManager():
         return self.touch(task, messages)
 
 
-    def update(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True, as_task_list: bool = False):
+    def update(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
         """
         Update records in the database table.
 
@@ -321,7 +324,7 @@ class DBManager():
         return self.touch(task, messages)
 
 
-    def upsert(self, table_cls, data_list: List[dict], messages: Messages = None, returning: bool = True, as_task_list: bool = False):
+    def upsert(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
         """
         Attempts to insert data into the specified table, and updates the data if the insert fails because of a unique constraint violation.
 
@@ -355,7 +358,7 @@ class DBManager():
         return self.touch(task_list, messages)
 
 
-    def touch(self, task_list: Union[Task, List[Task]], messages: Messages = None, is_select: bool = False, mapping_cls = None) -> Result:
+    def touch(self, task_list: Union[Task, List[Task]], messages: SuccessMessages = None, is_select: bool = False, mapping_cls = None) -> Result:
         """
         Executes a series of tasks and returns the result, committing the changes if all tasks are successful. Should any of the tasks fail, 
         the changes are rolled back, an error is raised and the according Result object is returned.
