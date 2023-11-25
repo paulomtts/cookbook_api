@@ -27,7 +27,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
     form_object = Recipes(**form_data)
     
     tasks = [
-        lambda: db.session.add(form_object)
+        lambda: db.insert(Recipes, [form_data], as_task_list=True)
         , lambda: db.session.flush()
         , *[lambda: db.session.add(RecipeIngredients(**{**row, 'id_recipe': form_object.id})) for row in insert_rows]
         , *[lambda: db.session.merge(RecipeIngredients(**row)) for row in update_rows]

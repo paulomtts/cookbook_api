@@ -2,10 +2,11 @@ from app.models import Categories, Units, Recipes, Ingredients, RecipeIngredient
 from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
                         , RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY\
                         , RECIPE_COMPOSITION_SNAPSHOT_QUERY
+from app.orm import Task, SuccessMessages
 from setup import db
 
 
-from fastapi import APIRouter, Response, status, Body
+from fastapi import APIRouter, Response, Body
 from fastapi.responses import JSONResponse, Response
 from sqlalchemy import or_, and_
 from sqlmodel import text
@@ -145,14 +146,16 @@ async def crud__select(response: Response, table_name: str = None, structured: b
         statement = statement.where(and_(*conditions))
 
 
-    read_data = lambda: pd.read_sql(statement, db.engine)
-    messages = {
-        'client': f"{table_name.replace('_', ' ').capitalize()}s retrieved."
-        , 'logger': f"Querying <{table_name}> was succesful! Filters: {filters}"
-    }
+    read_data = lambda statement, db: pd.read_sql(statement, db.engine)
+    new_task = Task(read_data, [statement, db])
 
-    df, status_code, message = db.touch(read_data, messages=messages, is_select=True)
+    messages = SuccessMessages(
+        f"{table_name.replace('_', ' ').capitalize()}s retrieved."
+        f"Querying <{table_name}> was succesful! Filters: {filters}"
+    )
 
+    df, status_code, message = db.touch(new_task, messages=messages, is_select=True, parse=False)
+    
 
     if status_code != 200:
         return JSONResponse(status_code=status_code, content={'message': message}, headers=response.headers)

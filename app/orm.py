@@ -1,5 +1,5 @@
 from fastapi import status
-from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column
+from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column, and_, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
 from sqlalchemy.orm.exc import StaleDataError
@@ -49,7 +49,7 @@ class Result(BaseModel):
         - client_message (str): The client message associated with the result.
     """
 
-    content: List[pd.DataFrame]
+    content: list | pd.DataFrame
     status_code: Literal[200, 204, 400, 500, 503]
     client_message: str
 
@@ -70,6 +70,9 @@ class SuccessMessages(BaseModel):
     """
     client: Optional[str] = ''
     logger: Optional[str] = ''
+
+    def __init__(self, client: Optional[str] = '', logger: Optional[str] = ''):
+        super().__init__(client=client, logger=logger)
 
     def __iter__(self):
         yield self.client
@@ -138,6 +141,7 @@ ERROR_MAP = {
 class DBManager():
     """
     A class that manages the database connection and provides methods for executing queries and operations on the database.
+    - Note: any returned data will be in the form of a Pandas DataFrame.
 
     Args:
         - dialect (str): The database dialect.
@@ -193,7 +197,7 @@ class DBManager():
             pass  # In case close() method is already called or doesn't exist
 
 
-    def query(self, table_cls, filters: list = None, messages: SuccessMessages = None, order_by: List[Column] = None, as_task_list: bool = False):
+    def query(self, table_cls, filters: dict = None, messages: SuccessMessages = None, order_by: List[Column] = None, as_task_list: bool = False):
         """
         Executes a query on the specified table class with optional filters and ordering.
 
@@ -208,12 +212,27 @@ class DBManager():
             - `Task` or `Result`: `Task` object or a `Result` object containing the query results.
         """
 
-        if filters is None: filters = []
+        if filters is None: filters = {}
 
-        statement = select(table_cls).where(*[getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()])
+        conditions = []
+        if 'and' in filters:
+            and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['and'].items()]
+            conditions.append(and_(*and_conditions))
+
+        if 'or' in filters:
+            or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['or'].items()]
+            conditions.append(or_(*or_conditions))
+
+
+        statement = select(table_cls)
+
+
+        if conditions:
+            statement = statement.where(*conditions)
 
         if order_by:
             statement = statement.order_by(*order_by)
+
 
         fn = lambda statement: self.session.execute(statement)
         task = Task(fn, [statement], mapping_cls=table_cls)
@@ -358,7 +377,7 @@ class DBManager():
         return self.touch(task_list, messages)
 
 
-    def touch(self, task_list: Union[Task, List[Task]], messages: SuccessMessages = None, is_select: bool = False, mapping_cls = None) -> Result:
+    def touch(self, task_list: Union[Task, List[Task]], messages: SuccessMessages = None, is_select: bool = False, parse: bool = True) -> Result:
         """
         Executes a series of tasks and returns the result, committing the changes if all tasks are successful. Should any of the tasks fail, 
         the changes are rolled back, an error is raised and the according Result object is returned.
@@ -367,7 +386,7 @@ class DBManager():
             - task_list (`Union[Task, List[Task]]`): A single task or a list of tasks to be executed.
             - messages (`Messages, optional`): An object containing messages for logging and client response. Defaults to None.
             - is_select (`bool, optional`): Indicates whether the tasks are select queries. Defaults to False.
-            - mapping_cls (`Any, optional`): The class used for mapping the query result. Defaults to None.
+            - parse (`bool, optional`): Indicates whether the returned data should be parsed into a Pandas DataFrame. Defaults to True.
 
         Returns:
             `Result`: The result of the executed tasks.
@@ -397,7 +416,11 @@ class DBManager():
                 group_content = []
                 for subtask in task:
                     fn, args, mapping_cls = subtask
-                    content = fn(*args).fetchall()
+                    content = fn(*args)
+
+                    if not parse:
+                        content_list.append(content)
+                        continue
 
                     parsed_content = []
                     for row in content:
@@ -406,6 +429,9 @@ class DBManager():
                         parsed_content.append(dct)
 
                     group_content.extend(parsed_content)
+
+                if not parse:
+                    continue
 
                 df = pd.DataFrame(group_content)
 
@@ -417,7 +443,8 @@ class DBManager():
                 content_list.append(df)
 
             if not is_select:
-                self.session.commit()
+                    self.session.commit()
+
 
         except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, StaleDataError, IndexError, Exception) as e:
             self.session.rollback()
@@ -433,6 +460,9 @@ class DBManager():
         
         if messages and messages.logger: 
             self.logger.debug(messages.logger)
+            
+        if len(content_list) == 1:
+            return Result(content_list[0], STATUS_DICT[200], client_message)
 
         return Result(content_list, STATUS_DICT[200], client_message)
     

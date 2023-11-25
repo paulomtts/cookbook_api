@@ -13,6 +13,10 @@ app.include_router(routes_router)
 
 @app.get('/health')
 async def azuretest():
+    return JSONResponse(status_code=200, content={"message": "healthy."})
+
+@app.get('/nested_test')
+async def nested_test():
     from setup import db
     from app.models import Ingredients
     from collections import namedtuple
@@ -26,20 +30,21 @@ async def azuretest():
     new_ingredient_4 = dict(name='Something else', description="This is a test ingredient", type='Test', updated_at=datetime.datetime.now())
     new_ingredient_5 = dict(name='Another test ingredient', description="This is a test ingredient", type='Test', updated_at=datetime.datetime.now())
 
-    task_list = [
+    tasks = [
         db.insert(Ingredients, [new_ingredient_4, new_ingredient_5], as_task_list=True)
         , db.update(Ingredients, [new_ingredient_1, new_ingredient_2], as_task_list=True)
         , db.upsert(Ingredients, [new_ingredient_1, new_ingredient_3], as_task_list=True)
         , db.delete(Ingredients, {'id': [3]}, as_task_list=True)
-        , db.query(Ingredients, {'id': [2, 99]}, as_task_list=True)
+        , db.query(Ingredients, {'or': {'id': [2, 99]}, 'and': {'name': ['Potatoes']}}, as_task_list=True)
     ]
-
-    results = db.touch(task_list, Messages(client='Submission successful!', logger='Nested operations succeeded!'))
+    messages = Messages(client='Submission successful!', logger='Nested operations succeeded!')
+    
+    results = db.touch(tasks, messages=messages)
 
     for df in results.content:
         print(df)
 
-    return JSONResponse(status_code=200, content={"message": "healthy."})
+    return JSONResponse(status_code=200, content={"message": "nested_test."})
 
 
 if __name__ == '__main__':
