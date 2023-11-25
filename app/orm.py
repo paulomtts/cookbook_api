@@ -1,5 +1,4 @@
 from fastapi import status
-from sqlmodel import and_
 from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
