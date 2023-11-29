@@ -8,13 +8,19 @@
             ]
             , "categories": [
                 "name"
-                , "description"
                 , "type"
             ]
             , "units": [
                 "name"
                 , "abbreviation"
                 , "base"
+            ]
+            , "recipes": [
+                "name"
+                , "type"
+                , "period"
+                , "presentation"
+                , "description"
             ]
         }
     }

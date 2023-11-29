@@ -1,14 +1,12 @@
 from fastapi import APIRouter, Response, Body
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy import text, or_, and_
 
+from app.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
-                        , RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY\
-                        , RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.orm import SuccessMessages
 from setup import db
 
+from collections import namedtuple
 import pandas as pd
 import json
 
@@ -16,7 +14,7 @@ import json
 crud_router = APIRouter()
 
 
-table_switch = {
+TABLE_MAP = {
     'categories': Categories
     , 'units': Units
     , 'recipes': Recipes
@@ -24,18 +22,19 @@ table_switch = {
     , 'recipe_ingredients': RecipeIngredients
 }
 
-query_switch = {
-    'categories': CATEGORY_QUERY
-    , 'units': UNIT_QUERY
-    , 'recipes': RECIPE_QUERY
-    , 'ingredients': INGREDIENT_QUERY
-    , 'recipe_ingredients': RECIPE_INGREDIENT
-    , 'recipe_composition_empty': RECIPE_COMPOSITION_EMPTY_QUERY
-    , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_QUERY
-    , 'recipe_composition_snapshot': RECIPE_COMPOSITION_SNAPSHOT_QUERY
+ComplexQuery = namedtuple('ComplexQuery', ['statement', 'client_name'])
+QUERY_MAP = {
+    'recipe_composition_empty': ComplexQuery(RECIPE_COMPOSITION_EMPTY_QUERY, 'empty Recipe composition')
+    , 'recipe_composition_loaded': ComplexQuery(RECIPE_COMPOSITION_LOADED_QUERY, 'loaded Recipe composition')
+    , 'recipe_composition_snapshot': ComplexQuery(RECIPE_COMPOSITION_SNAPSHOT_QUERY, 'Recipe')
 }
 
-callable_queries = [RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY]
+
+def to_json(content):
+    if isinstance(content, pd.DataFrame):
+        return content.to_json(orient='records')
+    else:
+        return json.dumps(content)
 
 
 @crud_router.get("/crud/maps")
@@ -71,14 +70,23 @@ async def crud__insert(response: Response, table_name: str = None, data: dict = 
     Returns:
         - JSONResponse: The JSON response containing the inserted data and a message.
     """
-    table_cls = table_switch[table_name]
 
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
+    
     messages = SuccessMessages(
-        f"Inserted data in {table_name.capitalize()}s."
-        , f"Insert in {table_name.capitalize()} was successful. \n\nData: {data}\n"
+        client=f"Successfuly submited to {table_name.capitalize()}."
+        , logger=f"Insert in <{table_name.capitalize()}> was successful. Data: \n{data}\n"
     )
-    content, status_code, message = db.insert(table_cls, [data], messages, returning=True, as_task=False)
-    json_data = content.to_json(orient='records')
+
+    @db.catching(messages=messages)
+    def insert_data(table_cls, data):
+        return db.insert(table_cls, [data])
+    
+    content, status_code, message = insert_data(table_cls, data)
+    json_data = to_json(content)
 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
@@ -120,51 +128,30 @@ async def crud__select(response: Response, table_name: str = None, data: dict = 
     Returns:
         - JSONResponse: The response containing the selected data and a message.
     """
-    content: pd.DataFrame
+  
+    table_cls = TABLE_MAP.get(table_name)
+    query = QUERY_MAP.get(table_name, ComplexQuery(None, None))
+
     
-
-    statement = query_switch[table_name]
-
-    if statement in callable_queries:
-        callable_args = data.get('lambda_args', {})
-        statement = statement(**callable_args)
-
+    statement = query.statement if not callable(query.statement)\
+                                else query.statement(**data.get('lambda_args', {}))  
+    
+    if table_cls is None and statement is None:
+        db.logger.warning(f"Incoming data did not pass validation.")
+        return JSONResponse(status_code=400, content={"message": f"Client provided an invalid table name: <{table_name}>"}, headers=response.headers)
 
     filters: dict = data.get('filters', {})
-    conditions: list = []
-
-    if 'or' in filters:
-        or_conditions = [text(f"{attr} = {val}") for attr, values in filters['or'].items() for val in values]
-        conditions.append(or_(*or_conditions))
-
-    if 'and' in filters:
-        and_conditions = [text(f"{attr} = {val}") for attr, values in filters['and'].items() for val in values]
-        conditions.append(and_(*and_conditions))
-
-    if 'like' in filters:
-        like_conditions = [text(f"{attr} LIKE {val}") for attr, values in filters['like'].items() for val in values]
-        conditions.append(or_(*like_conditions))
-
-    if 'not_like' in filters:
-        not_like_conditions = [text(f"{attr} NOT LIKE {val}") for attr, values in filters['like'].items() for val in values]
-        conditions.append(and_(*not_like_conditions))
-
-    if conditions:
-        statement = statement.where(and_(*conditions))
-
     messages = SuccessMessages(
-        f"{table_name.replace('_', ' ').capitalize()}s retrieved."
-        , f"Querying <{table_name}> was succesful! Filters: {filters}"
+        client=f"{table_name.capitalize()[:-1]} retrieved." if table_cls else f"{query.client_name.capitalize()} retrieved."
+        , logger=f"Querying <{table_name}> was succesful! Filters: {filters}"
     )
 
     @db.catching(messages=messages)
-    def read_data(statement):
-        return pd.read_sql(statement, db.engine)
+    def read_data(table_cls, statement, filters):
+        return db.query(table_cls=table_cls, statement=statement, filters=filters) # uses either table_cls or statement
 
-    content, status_code, message = read_data(statement)
-
-    if isinstance(content, pd.DataFrame):
-        json_data = content.to_json(orient='records')
+    content, status_code, message = read_data(table_cls, statement, filters)
+    json_data = to_json(content)
     
     if status_code == 204:
         return Response(status_code=status_code, headers=response.headers)
@@ -188,14 +175,22 @@ async def crud__update(response: Response, table_name: str = None, data: dict = 
     Returns:
         - JSONResponse: The JSON response containing the updated data and message.
     """
-    table_cls = table_switch[table_name]
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
 
     messages = SuccessMessages(
         client=f"{table_name.capitalize()} updated."
         , logger=f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
     )
-    content, status_code, message = db.update(table_cls, [data], messages, returning=True, as_task=False)
-    json_data = content.to_json(orient='records')
+
+    @db.catching(messages=messages)
+    def update_data(table_cls, data):
+        return db.update(table_cls, [data])
+
+    content, status_code, message = update_data(table_cls, data)
+    json_data = to_json(content)
 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
@@ -215,18 +210,25 @@ async def crud__delete(response: Response, table_name: str = None, data: dict = 
         - JSONResponse: The JSON response containing the deleted data and a message.
     """
     filters = data.pop('filters')
-
     if not filters:
-        db.logger.warning(f"Client did not provide any filters.")
+        db.logger.warning(f"Insufficient data provided by client.")
         return JSONResponse(status_code=400, content={"message": "No filters were received by the server."}, headers=response.headers)
 
-    table_cls = table_switch[table_name]
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
 
     messages = SuccessMessages(
         client=f"{table_name.capitalize()} deleted."
         , logger=f"Delete in {table_name.capitalize()} was successful. \n\nFilters: {filters}\n"
     )
-    content, status_code, message = db.delete(table_cls, filters, messages, returning=True, as_task=False)
-    json_data = content.to_json(orient='records')
+
+    @db.catching(messages=messages)
+    def delete_data(table_cls, filters):
+        return db.delete(table_cls, filters)
+    
+    content, status_code, message = delete_data(table_cls, filters)
+    json_data = to_json(content)
     
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)

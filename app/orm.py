@@ -1,9 +1,10 @@
 from fastapi import status
-from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column, and_, or_, text
+from sqlalchemy import create_engine, inspect, select, insert, delete, update, and_, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
+from sqlalchemy.sql.selectable import Select
 
 from collections import namedtuple
 from typing import List, Any
@@ -16,7 +17,8 @@ import pandas as pd
 SuccessMessages = namedtuple('SuccessMessages', ['client', 'logger'], defaults=['Operation was successful.', None])
 ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
 
-STATUS_DICT = {
+
+STATUS_MAP = {
     200: status.HTTP_200_OK
     , 204: status.HTTP_204_NO_CONTENT
     , 400: status.HTTP_400_BAD_REQUEST
@@ -26,58 +28,61 @@ STATUS_DICT = {
 
 ERROR_MAP = {
     IntegrityError: ErrorObject(
-        status.HTTP_400_BAD_REQUEST
+        STATUS_MAP[400]
         , "Integrity error."
         , "Attempted to breach database constraints."
     )
     
     , ProgrammingError: ErrorObject(
-        status.HTTP_500_INTERNAL_SERVER_ERROR
+        STATUS_MAP[500]
         , "Statement error."
         , "Attempted to perform a bad statement."
     )
     
     , OperationalError: ErrorObject(
-        status.HTTP_503_SERVICE_UNAVAILABLE
+        STATUS_MAP[503]
         , "Database is unavailable."
         , "Could not reach the database."
     )
     
     , InternalError: ErrorObject(
-        status.HTTP_500_INTERNAL_SERVER_ERROR
+        STATUS_MAP[500]
         , "Database error."
         , "An internal error ocurred in the database. Please contact the dabatase administrator."
     )
     
     , ValueError: ErrorObject(
-        status.HTTP_400_BAD_REQUEST
+        STATUS_MAP[400]
         , "Bad request."
         , "Incoming data did not pass validation."
     )
     
     , StaleDataError: ErrorObject(
-        status.HTTP_400_BAD_REQUEST
+        STATUS_MAP[400]
         , "Stale data."
         , "One or more rows involved in the operation did could not be found or did not match the expected values."
     )
 
     , IndexError: ErrorObject(
-        status.HTTP_400_BAD_REQUEST
+        STATUS_MAP[400]
         , "Index error."
         , "Expected returning data but none was found."
     )
 
     , Exception: ErrorObject(
-        status.HTTP_500_INTERNAL_SERVER_ERROR
+        STATUS_MAP[500]
         , "Internal server error."
         , "An unknown error occurred while interacting with the database."
     )
 }
 
+
 class DBManager():
     """
-    A class that manages the database connection and provides methods for executing queries and operations on the database.
-    - Note: any returned data will be in the form of a Pandas DataFrame.
+    A class that manages the database connection and provides methods for executing queries and manipulating data using
+    SQLAlchemy's Session API. Note that all methods are capable of bulk operations and returnings in the form of
+    either a DataFrame or a namedtuple, the latter meant for providing an object whose properties can be accessed during
+    chained operations.
 
     Args:
         - dialect (str): The database dialect.
@@ -87,30 +92,25 @@ class DBManager():
         - port (str): The port number for the database connection.
         - database (str): The name of the database.
         - schema (str): The schema to be used for the database connection.
-        - logger (Logger): The logger object for logging messages.
+        - logger (Logger): The logger object for logging.
 
     Attributes:
-        - engine (Engine): The SQLAlchemy engine object for the database connection.
-        - session (Session): The SQLAlchemy session object for executing database operations.
-        - logger (Logger): The logger object for logging messages.
+        - engine: The database engine object.
+        - session: The database session object.
+        - logger: The logger object for logging.
 
     Methods:
-        - query(table_cls, filters=None, messages=None, order_by=None, as_task_list=False): Executes a query on the specified table class with optional filters and ordering.
-        - insert(table_cls, data_list, messages=None, returning=True, as_task_list=False): Inserts data into the specified table.
-        - update(table_cls, data_list, messages=None, returning=True, as_task_list=False): Updates records in the database table.
-        - delete(table_cls, filters, messages=None, returning=True, as_task_list=False): Deletes records from the specified table based on the provided filters.
-        - upsert(table_cls, data_list, messages=None, returning=True, as_task_list=False): Attempts to insert data into the specified table, and updates the data if the insert fails because of a unique constraint violation.
-        - touch(task_list, messages=None, is_select=False, mapping_cls=None): Executes a series of tasks and returns the result, committing the changes if all tasks are successful.
-
-    Raises:
-        - IntegrityError: Raised when there is a violation of a unique constraint or foreign key constraint.
-        - ProgrammingError: Raised when there is an error in the SQL statement.
-        - OperationalError: Raised when there is an operational error in the database.
-        - InternalError: Raised when there is an internal error in the database.
-        - ValueError: Raised when there is an invalid value or argument.
-        - StaleDataError: Raised when there is a conflict with concurrent updates.
-        - IndexError: Raised when there is an index error.
-        - Exception: Raised for any other exception.
+        - __init__: Initializes the DBManager object.
+        - __del__: Closes the session and releases resources when the object is destroyed.
+        - _map_dataframe: Maps a dataframe to the specified mapping class.
+        - current_datetime: Returns the current datetime in the database.
+        - parse_returnings: Parses the returnings from a database query and returns the result as a pandas DataFrame.
+        - query: Executes a query on the specified table class with optional filters and ordering.
+        - insert: Inserts data into the specified table.
+        - update: Updates records in the specified table with the given data.
+        - delete: Deletes records from the specified table based on the given filters.
+        - upsert: Attempts to insert data into the specified table and updates the data if the insert fails due to a unique constraint violation.
+        - catching: Decorator that executes a function, commits the session and handles exceptions gracefully.
     """
 
     def __init__(self, dialect: str, user: str, password: str, address: str, port: str, database: str, schema: str, logger: Logger):
@@ -130,7 +130,7 @@ class DBManager():
             self.session.close()
             self.logger.info(f"Gracefully closed a session.")
         except AttributeError:
-            pass  # In case close() method is already called or doesn't exist
+            self.logger.info(f"Could not find a session to close. Gracefully exiting.")
 
    
     def _map_dataframe(self, df: pd.DataFrame, mapping_cls: Any) -> pd.DataFrame:
@@ -157,16 +157,6 @@ class DBManager():
         return df
     
 
-    def current_datetime(self) -> str:
-        """
-        Returns the current datetime in the database.
-
-        Returns:
-            - str: The current datetime in the database.
-        """
-        return datetime.datetime.utcnow()
-
-
     def parse_returnings(self, returnings: List, as_dict: bool = False, mapping_cls: Any = None) -> pd.DataFrame:
         """
         Parses the returnings from a database query and returns the result as a pandas DataFrame.
@@ -192,42 +182,70 @@ class DBManager():
         return self._map_dataframe(pd.DataFrame(rows_as_dicts), mapping_cls)
     
 
-    def query(self, table_cls, filters: dict = None, order_by: List[Column] = None, single: bool = None):
+    def current_datetime(self) -> str:
         """
-        Executes a query on the specified table class with optional filters and ordering.
+        Returns the current datetime in the database.
+
+        Returns:
+            - str: The current datetime in the database.
+        """
+        return datetime.datetime.utcnow()
+    
+
+    def query(self, table_cls, statement: Select = None, filters: dict = None, order_by: List[str] = None, single: bool = None):
+        """
+        Executes a database query based on the provided parameters. Accepts either a table class or a select statement. If
+        a statement is provided, filters and order_by are ignored.
 
         Args:
-            - table_cls (class): The table class to query.
-            - filters (dict, optional): Dictionary of filters to apply to the query. Defaults to None.
-            - order_by (List[Column], optional): List of columns to order the results by. Defaults to None.
-            - single (bool, optional): Flag indicating whether to return a single result or a DataFrame. Defaults to None.
+            - table_cls (class): The SQLAlchemy table class to query from.
+            - statement (Select, optional): The SQLAlchemy select statement to use for the query. Defaults to None.
+            - filters (dict, optional): The filters to apply to the query. Defaults to None.
+            - order_by (List[str], optional): The columns to order the query results by. Defaults to None.
+            - single (bool, optional): Whether to return a single result or a DataFrame. Defaults to None.
 
         Returns:
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
             - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-        if filters is None:
-            filters = {}
 
-        conditions = []
-        if 'and' in filters:
-            and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['and'].items()]
-            conditions.append(and_(*and_conditions))
+        if table_cls is None and statement is None:
+            raise ValueError("Either table_cls or statement must be specified.")
+        if table_cls is not None and statement is not None:
+            raise ValueError("Only one of table_cls or statement can be specified.")
 
-        if 'or' in filters:
-            or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['or'].items()]
-            conditions.append(or_(*or_conditions))
+        if table_cls:
+            if filters is None:
+                filters = {}
 
-        statement = select(table_cls)
+            conditions = []
 
-        if conditions:
-            statement = statement.where(*conditions)
+            if 'and' in filters:
+                and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['and'].items()]
+                conditions.append(and_(*and_conditions))
 
-        if order_by:
-            statement = statement.order_by(*order_by)
+            if 'or' in filters:
+                or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['or'].items()]
+                conditions.append(or_(*or_conditions))
 
-        returnings = self.session.execute(statement)
-        df = self.parse_returnings(returnings, mapping_cls=table_cls)
+            if 'like' in filters:
+                like_conditions = [getattr(table_cls, attr).like(val) for attr, values in filters['like'].items() for val in values]
+                conditions.append(or_(*like_conditions))
+
+            if 'not_like' in filters:
+                not_like_conditions = [getattr(table_cls, attr).notlike(val) for attr, values in filters['not_like'].items() for val in values]
+                conditions.append(and_(*not_like_conditions))
+
+            statement = select(table_cls)
+
+            if conditions:
+                statement = statement.where(and_(*conditions))
+
+            if order_by:
+                order_by_columns = [getattr(table_cls, column) for column in order_by]
+                statement = statement.order_by(*order_by_columns)
+
+        df = pd.read_sql(statement, self.engine)
 
         if single:
             tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
@@ -361,8 +379,6 @@ class DBManager():
 
         if single:
             return table_cls(**df.iloc[0].to_dict())
-            # tuple_cls = namedtuple(table_cls.__tablename__.capitalize() + 'Tuple', df.columns)
-            # return tuple_cls(**df.iloc[0].to_dict())
         
         return df
 
@@ -392,8 +408,8 @@ class DBManager():
                         if messages and messages.logger:
                             self.logger.info(messages.logger)
 
-                        return content, STATUS_DICT[200], messages.client if messages else 'Operation was successful.'
-                    except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, StaleDataError, IndexError, Exception) as e:
+                        return content, STATUS_MAP[200], messages.client if messages else 'Operation was successful.'
+                    except tuple(ERROR_MAP.keys()) as e:
                         self.session.rollback()
 
                         error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
