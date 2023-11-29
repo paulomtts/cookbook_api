@@ -1,83 +1,20 @@
 from fastapi import status
-from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column, and_, or_
+from sqlalchemy import create_engine, select, insert, delete, update, inspect, Column, and_, or_, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 
-from typing import List, Literal, Union, Callable, Optional, Any
 from collections import namedtuple
-from pydantic import BaseModel
+from typing import List, Any
 from logging import Logger
+import datetime
 
 import pandas as pd
 
 
-
-class Task(BaseModel):
-    """
-    Represents a task to be executed.
-
-    Attributes:
-        - function (Callable): The function to be executed.
-        - args (Optional[List], optional): The arguments to be passed to the function. Defaults to None.
-        - mapping_cls (Optional[Any], optional): The mapping class for the task, to help Pandas order a returned dataframe's columns. Defaults to None.
-    """
-
-    function: Callable
-    args: Optional[List] = None
-    mapping_cls: Optional[Any] = None
-
-    def __init__(self, function: Callable, args: Optional[List] = None, mapping_cls: Optional[Any] = None):
-        super().__init__(function=function, args=args, mapping_cls=mapping_cls)
-
-        if args is None:
-            self.args = []
-
-    def __iter__(self):
-        yield self.function
-        yield self.args
-        yield self.mapping_cls
-
-class Result(BaseModel):
-    """
-    Represents the result of an operation.
-
-    Attributes:
-        - content (List[pd.DataFrame]): The content of the result.
-        - status_code (Literal[200, 204, 400, 500, 503]): The status code of the result.
-        - client_message (str): The client message associated with the result.
-    """
-
-    content: list | pd.DataFrame
-    status_code: Literal[200, 204, 400, 500, 503]
-    client_message: str
-
-    class Config:
-        arbitrary_types_allowed = True
-
-    def __init__(self, content: list, status_code: Literal[200, 204, 400, 500, 503], client_message: str):
-        super().__init__(content=content, status_code=status_code, client_message=client_message)
-
-    def __iter__(self):
-        yield self.content
-        yield self.status_code
-        yield self.client_message
-
-class SuccessMessages(BaseModel):
-    """
-    A dummy class for storing success messages for logging and client response.
-    """
-    client: Optional[str] = ''
-    logger: Optional[str] = ''
-
-    def __init__(self, client: Optional[str] = '', logger: Optional[str] = ''):
-        super().__init__(client=client, logger=logger)
-
-    def __iter__(self):
-        yield self.client
-        yield self.logger
-
+SuccessMessages = namedtuple('SuccessMessages', ['client', 'logger'], defaults=['Operation was successful.', None])
+ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
 
 STATUS_DICT = {
     200: status.HTTP_200_OK
@@ -87,7 +24,6 @@ STATUS_DICT = {
     , 503: status.HTTP_503_SERVICE_UNAVAILABLE
 }
 
-ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
 ERROR_MAP = {
     IntegrityError: ErrorObject(
         status.HTTP_400_BAD_REQUEST
@@ -196,23 +132,82 @@ class DBManager():
         except AttributeError:
             pass  # In case close() method is already called or doesn't exist
 
+   
+    def _map_dataframe(self, df: pd.DataFrame, mapping_cls: Any) -> pd.DataFrame:
+        """
+        Maps a dataframe to the specified mapping class.
 
-    def query(self, table_cls, filters: dict = None, messages: SuccessMessages = None, order_by: List[Column] = None, as_task_list: bool = False):
+        Args:
+            - df (`pd.DataFrame`): The dataframe to be mapped.
+            - mapping_cls (`Any`): The mapping class for the task, to help Pandas order a returned dataframe's columns.
+
+        Returns:
+            - `pd.DataFrame`: The mapped dataframe.
+        """
+        if df.empty:
+            return df
+
+        mapping_columns = mapping_cls.__annotations__.keys()
+        columns = [*mapping_columns] + [col for col in df.columns if col not in mapping_columns]
+        df = df[columns]
+
+        if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
+        if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
+
+        return df
+    
+
+    def current_datetime(self) -> str:
+        """
+        Returns the current datetime in the database.
+
+        Returns:
+            - str: The current datetime in the database.
+        """
+        return datetime.datetime.utcnow()
+
+
+    def parse_returnings(self, returnings: List, as_dict: bool = False, mapping_cls: Any = None) -> pd.DataFrame:
+        """
+        Parses the returnings from a database query and returns the result as a pandas DataFrame.
+
+        Args:
+            - returnings (List): The list of returnings from the database query.
+            - as_dict (bool, optional): Flag indicating whether to return the result as a dictionary or not. Defaults to False.
+            - mapping_cls (Any, optional): The mapping class to be used for mapping the DataFrame. Defaults to None.
+
+        Returns:
+            - pd.DataFrame: The parsed result as a pandas DataFrame.
+        """
+
+        rows_as_dicts = []
+        for row in returnings:
+            dct = dict(row[0])
+            dct.pop('_sa_instance_state', None)
+            rows_as_dicts.append(dct)
+
+        if as_dict:
+            return rows_as_dicts
+
+        return self._map_dataframe(pd.DataFrame(rows_as_dicts), mapping_cls)
+    
+
+    def query(self, table_cls, filters: dict = None, order_by: List[Column] = None, single: bool = None):
         """
         Executes a query on the specified table class with optional filters and ordering.
 
         Args:
-            - table_cls (`class`): The table class to query.
-            - filters (`list, optional`): A dictionary containing the column names as keys and the values to filter on as values.
-            - messages (`Messages, optional`): An object for storing success messages. Defaults to None.
-            - order_by (`bool, optional`): A list of columns to order the query by, passed as as <instance>.<column_name>. Defaults to None.
-            - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (class): The table class to query.
+            - filters (dict, optional): Dictionary of filters to apply to the query. Defaults to None.
+            - order_by (List[Column], optional): List of columns to order the results by. Defaults to None.
+            - single (bool, optional): Flag indicating whether to return a single result or a DataFrame. Defaults to None.
 
         Returns:
-            - `Task` or `Result`: `Task` object or a `Result` object containing the query results.
+            - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
+            - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-
-        if filters is None: filters = {}
+        if filters is None:
+            filters = {}
 
         conditions = []
         if 'and' in filters:
@@ -223,9 +218,7 @@ class DBManager():
             or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['or'].items()]
             conditions.append(or_(*or_conditions))
 
-
         statement = select(table_cls)
-
 
         if conditions:
             statement = statement.where(*conditions)
@@ -233,236 +226,179 @@ class DBManager():
         if order_by:
             statement = statement.order_by(*order_by)
 
+        returnings = self.session.execute(statement)
+        df = self.parse_returnings(returnings, mapping_cls=table_cls)
 
-        fn = lambda statement: self.session.execute(statement)
-        task = Task(fn, [statement], mapping_cls=table_cls)
+        if single:
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
+            return tuple_cls(**df.iloc[0].to_dict())
 
-        if as_task_list:
-            return task
-
-        return self.touch(task, messages, True)
+        return df
 
 
-    def insert(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
+    def insert(self, table_cls, data_list: List[dict], single: bool = False):
         """
         Insert data into the specified table.
 
         Args:
-            - table_cls (`Table`): The table class to insert data into.
-            - data_list (`List[dict]`): A list of dictionaries representing the data to be inserted.
-            - messages (`Messages`, optional): An object for storing success messages. Defaults to `None`.
-            - returning (`bool`, optional): Whether to include the inserted data in the result. Defaults to `True`.
-            - as_task_list (`bool`, optional): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (class): The table class to insert data into.
+            - data_list (List[dict]): A list of dictionaries representing the data to be inserted.
+            - single (bool, optional): Whether to return a single row or a DataFrame. Defaults to False.
 
         Returns:
-            - `Task`, `List[Task]` or `Result`: The task or list of tasks representing the insert operation, or a `Result` object containing the inserted data.
+            - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
+            - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-        statement = insert(table_cls).values(data_list)
+        
+        statement = insert(table_cls).values(data_list).returning(table_cls)
 
-        if returning:
-            statement = statement.returning(table_cls)
+        returnings = self.session.execute(statement)
+        df = self.parse_returnings(returnings, mapping_cls=table_cls)
 
-        fn = lambda statement: self.session.execute(statement)
-        task = Task(fn, [statement], mapping_cls=table_cls)
+        if single:
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
+            return tuple_cls(**df.iloc[0].to_dict())
 
-        if as_task_list:
-            return task
-
-        return self.touch(task, messages)
+        return df
 
 
-    def update(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
+    def update(self, table_cls, data_list: List[dict], single: bool = False):
         """
-        Update records in the database table.
+        Update records in the specified table with the given data.
 
         Args:
-            - table_cls (`class`): The class representing the database table.
-            - data_list (`List[dict]`): A list of dictionaries containing the updated data for each record.
-            - messages (`Messages, optional`): An object for storing success messages. Defaults to None.
-            - returning `(bool, optional`): Whether to return the updated records. Defaults to True.
-            - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (class): The table class representing the table to update.
+            - data_list (List[dict]): A list of dictionaries containing the data to update.
+            - single (bool, optional): If True, only the first updated record will be returned. 
+                                    Defaults to False.
 
         Returns:
-            - `Union[List[Task], Any]`: If `as_task_list` is True, returns a list of update tasks. Otherwise, returns the result of `self.touch`.
+            - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
+            - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-
-        assert isinstance(data_list, list), f"Data must be type <list>. Instead, it is type <{type(data_list).__name__}>."
-
         inspector = inspect(table_cls)
         pk_columns = [column.name for column in inspector.primary_key]  
 
-        task_list = []
+        results = []
         for data in data_list:
+            if data.get('created_at'):
+                data.pop('created_at')
+
+            if data.get('updated_at'):
+                data['updated_at'] = self.current_datetime()
 
             conditions = [getattr(table_cls, pk) == data[pk] for pk in pk_columns]
-            statement = (
-                update(table_cls)
-                .where(*conditions)
-                .values(data)
-            )
+            statement = update(table_cls).where(*conditions).values(data).returning(table_cls)
 
-            if returning:
-                statement = statement.returning(table_cls)
+            returnings = self.session.execute(statement)
+            results.extend(returnings)
 
-            fn = lambda statement: self.session.execute(statement)
-            task = Task(fn, [statement], mapping_cls=table_cls)
-            task_list.append(task)
-        
-        if as_task_list:
-            return task_list
-        
-        return self.touch(task_list, messages)
+        df = self.parse_returnings(results, mapping_cls=table_cls)
+
+        if single:
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
+            return tuple_cls(**df.iloc[0].to_dict())
+
+        return df
 
 
-    def delete(self, table_cls, filters: dict, messages: dict = None, returning: bool = True, as_task_list: bool = False):
+    def delete(self, table_cls, filters: dict, single: bool = False):
         """
-        Delete records from the specified table based on the provided filters.
+        Delete records from the specified table based on the given filters.
 
         Args:
-            - table_cls (`class`): The table class representing the table to delete records from.
-            - filters (`dict`): A dictionary containing the column names as keys and the values to filter on as values.
-            - messages (`dict, optional`): A dictionary containing messages to be printed if succesful. Defaults to None.
-            - returning (`bool, optional`): Whether to include the deleted records in the return value. Defaults to True.
-            - as_task_list (`bool, optional`): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (class): The table class representing the table to delete from.
+            - filters (dict): A dictionary containing the column names as keys and the values to filter on as values.
+            - single (bool, optional): If True, return a single record as a named tuple. Defaults to False.
 
         Returns:
-            - `Task` or `list`: The deletion task or a `list` of deletion tasks, depending on the value of `as_task_list`.
+            - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the deleted records.
+            - If `single` is `True`, a `namedtuple` representing the first deleted record.
         """
         conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
-        statement = delete(table_cls).where(*conditions)
-        
-        if returning:
-            statement = statement.returning(table_cls)
+        statement = delete(table_cls).where(*conditions).returning(table_cls)
 
-        fn = lambda statement: self.session.execute(statement)
-        task = Task(fn, [statement], mapping_cls=table_cls)
+        returnings = self.session.execute(statement)
+        df = self.parse_returnings(returnings, mapping_cls=table_cls)
 
-        if as_task_list:
-            return task
+        if single:
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
+            return tuple_cls(**df.iloc[0].to_dict())
 
-        return self.touch(task, messages)
+        return df
 
 
-    def upsert(self, table_cls, data_list: List[dict], messages: SuccessMessages = None, returning: bool = True, as_task_list: bool = False):
+    def upsert(self, table_cls, data_list: List[dict], single: bool = False):
         """
         Attempts to insert data into the specified table, and updates the data if the insert fails because of a unique constraint violation.
 
         Args:
-            - table_cls (`class`): The table class.
-            - data_list (`List[dict]`): A list of dictionaries containing the data to be upserted.
-            - messages (`Messages`, optional): A dictionary containing messages to be printed if succesful. Defaults to None.
-            - returning (`bool`, optional): Whether to return the upserted data. Defaults to True.
-            - as_task_list (`bool`, optional): Whether to avoid immediately executing the task and return it as a callback instead. Defaults to `False`.
+            - table_cls (`class`): The table class to insert data into.
+            - data_list (`List[dict]`): A list of dictionaries representing the data to be inserted.
 
         Returns:
-            - `Union[List[Task], Any]`: If `as_task_list` is True, returns a list of Task objects representing the upsert tasks.
-            Otherwise, returns the result of the `touch` method.
+            - A `pd.DataFrame` containing the inserted data.
+            - If `single` is `True`, a `namedtuple` representing the first inserted record.
         """
-        task_list = []
+       
+        results = []
 
         for data in data_list:
+            if data.get('created_at'):
+                data.pop('created_at')
+
+            if data.get('updated_at'):
+                data['updated_at'] = self.current_datetime()
+
             statement = postgres_upsert(table_cls).values(data)\
                         .on_conflict_do_update(index_elements=[table_cls.id], set_=data)\
+                        .returning(table_cls)
             
-            if returning:
-                statement = statement.returning(table_cls)
-            
-            fn = lambda statement: self.session.execute(statement)
-            task = Task(fn, [statement], mapping_cls=table_cls)
-            task_list.append(task)
+            returnings = self.session.execute(statement)
+            results.extend(returnings)
 
-        if as_task_list:
-            return task_list
+        df = self.parse_returnings(results, mapping_cls=table_cls)
 
-        return self.touch(task_list, messages)
-
-
-    def touch(self, task_list: Union[Task, List[Task]], messages: SuccessMessages = None, is_select: bool = False, parse: bool = True) -> Result:
-        """
-        Executes a series of tasks and returns the result, committing the changes if all tasks are successful. Should any of the tasks fail, 
-        the changes are rolled back, an error is raised and the according Result object is returned.
-
-        Args:
-            - task_list (`Union[Task, List[Task]]`): A single task or a list of tasks to be executed.
-            - messages (`Messages, optional`): An object containing messages for logging and client response. Defaults to None.
-            - is_select (`bool, optional`): Indicates whether the tasks are select queries. Defaults to False.
-            - parse (`bool, optional`): Indicates whether the returned data should be parsed into a Pandas DataFrame. Defaults to True.
-
-        Returns:
-            `Result`: The result of the executed tasks.
-
-        Raises:
-            - IntegrityError
-            - ProgrammingError
-            - OperationalError
-            - InternalError
-            - ValueError
-            - StaleDataError
-            - IndexError
-            - Exception
-        """
-        if type(task_list) != list: task_list = [task_list]
-       
-        content_list = []
-
-        client_message = 'Operation successful.'
-        if messages and messages.client:
-            client_message = messages.client
-
-        try:
-            for task in task_list:
-                task = task if isinstance(task, list) else [task]
-
-                group_content = []
-                for subtask in task:
-                    fn, args, mapping_cls = subtask
-                    content = fn(*args)
-
-                    if not parse:
-                        content_list.append(content)
-                        continue
-
-                    parsed_content = []
-                    for row in content:
-                        dct = dict(row[0])
-                        dct.pop('_sa_instance_state', None)
-                        parsed_content.append(dct)
-
-                    group_content.extend(parsed_content)
-
-                if not parse:
-                    continue
-
-                df = pd.DataFrame(group_content)
-
-                if mapping_cls:
-                    mapping_columns = mapping_cls.__annotations__.keys()
-                    columns = [*mapping_columns] + [col for col in df.columns if col not in mapping_columns]
-                    df = df[columns]
-
-                content_list.append(df)
-
-            if not is_select:
-                    self.session.commit()
-
-
-        except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, StaleDataError, IndexError, Exception) as e:
-            self.session.rollback()
-
-            error = ERROR_MAP.get(type(e))
-            self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
-
-            return Result([], error.status_code, error.client_message)
-
-        if is_select and len(content_list) == 1 and getattr(content_list[0], 'empty', True):
-            self.logger.debug(f"Query returned no results.")
-            return Result([], STATUS_DICT[204], client_message)
+        if single:
+            return table_cls(**df.iloc[0].to_dict())
+            # tuple_cls = namedtuple(table_cls.__tablename__.capitalize() + 'Tuple', df.columns)
+            # return tuple_cls(**df.iloc[0].to_dict())
         
-        if messages and messages.logger: 
-            self.logger.debug(messages.logger)
-            
-        if len(content_list) == 1:
-            return Result(content_list[0], STATUS_DICT[200], client_message)
+        return df
 
-        return Result(content_list, STATUS_DICT[200], client_message)
-    
+
+    def catching(self, messages: SuccessMessages = None):
+            """
+            Decorator that catches specific exceptions and handles them gracefully. Note: does not commit.
+
+            How to declare:
+                - Place decorator above function like so:\n
+                >>> @instace.catching()
+                    def fn():
+            
+            Args:
+                - session: The database session.
+                - logger: The logger.
+
+            Returns:
+                - callable: The decorated function.
+            """
+            def decorator(func):
+                def wrapper(*args, **kwargs):
+                    try:
+                        content = func(*args, **kwargs)
+                        self.session.commit()
+
+                        if messages and messages.logger:
+                            self.logger.info(messages.logger)
+
+                        return content, STATUS_DICT[200], messages.client if messages else 'Operation was successful.'
+                    except (IntegrityError, ProgrammingError, OperationalError, InternalError, ValueError, StaleDataError, IndexError, Exception) as e:
+                        self.session.rollback()
+
+                        error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
+                        self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
+
+                        return [], error.status_code, error.client_message
+                return wrapper
+            return decorator
