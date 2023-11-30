@@ -43,7 +43,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
     @db.catching(messages=SuccessMessages('Recipe submitted successfully.'))
     def upsert_recipe(form_data, insert_rows, delete_rows):
 
-        form_object: Recipes = db.upsert(Recipes, [form_data], single=True)
+        form_object = db.upsert(Recipes, [form_data], single=True)
         
         db.upsert(RecipeIngredients, [{**row, 'id_recipe': form_object.id} for row in insert_rows])
         db.delete(RecipeIngredients, {'id': [row.get('id_recipe_ingredient') for row in delete_rows]})
@@ -52,8 +52,8 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
 
         new_form_data = form_object.json()
         recipes_df = db.query(Recipes)
-        recipe_ingredients_loaded_df = pd.DataFrame(db.session.execute(LOADED_QUERY(form_object.id)))
-        recipe_ingredients_snapshot_df = pd.DataFrame(db.session.execute(SNAPSHOT_QUERY(form_object.id)))
+        recipe_ingredients_loaded_df = db.query(None, LOADED_QUERY(form_object.id))
+        recipe_ingredients_snapshot_df = db.query(None, SNAPSHOT_QUERY(form_object.id))
 
         json_data = {
             'form_data': new_form_data,
