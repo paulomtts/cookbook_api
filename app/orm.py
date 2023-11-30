@@ -133,6 +133,10 @@ class DBManager():
         except AttributeError:
             self.logger.info(f"Could not find a session to close. Gracefully exiting.")
 
+    def _single(self, table_cls, df: pd.DataFrame) -> namedtuple:
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns + ['_df'])
+            return tuple_cls(**df.iloc[0].to_dict(), _df=df)
+
    
     def _map_dataframe(self, df: pd.DataFrame, mapping_cls: Any) -> pd.DataFrame:
         """
@@ -240,8 +244,7 @@ class DBManager():
         df = pd.read_sql(statement, self.engine)
 
         if single:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
-            return tuple_cls(**df.iloc[0].to_dict())
+            return self._single(table_cls, df)
 
         return df
 
@@ -266,8 +269,7 @@ class DBManager():
         df = self.parse_returnings(returnings, mapping_cls=table_cls)
 
         if single:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
-            return tuple_cls(**df.iloc[0].to_dict())
+            return self._single(table_cls, df)
 
         return df
 
@@ -306,8 +308,7 @@ class DBManager():
         df = self.parse_returnings(results, mapping_cls=table_cls)
 
         if single:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
-            return tuple_cls(**df.iloc[0].to_dict())
+            return self._single(table_cls, df)
 
         return df
 
@@ -332,8 +333,7 @@ class DBManager():
         df = self.parse_returnings(returnings, mapping_cls=table_cls)
 
         if single:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
-            return tuple_cls(**df.iloc[0].to_dict())
+            return self._single(table_cls, df)
 
         return df
 
@@ -370,8 +370,7 @@ class DBManager():
         df = self.parse_returnings(results, mapping_cls=table_cls)
 
         if single:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
-            return tuple_cls(**df.iloc[0].to_dict())
+            return self._single(table_cls, df)
         
         return df
 
