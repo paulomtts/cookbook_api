@@ -1,5 +1,5 @@
 # cookbook_api 🍔
-This is the API for the Cookbook app! The goal is to be a simple demonstration of SQLAlchemy, SQLModel & Pandas usage in building an easy to routes. Here are a few features:
+This is the API for the Cookbook app! The goal is to be a simple demonstration of SQLAlchemy, SQLModel & Pandas usage in building easy to read routes. Here are a few features:
 
 - Nested, bulk & returning operations
 - Returnings allow for OOP during chained operations
