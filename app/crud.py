@@ -37,38 +37,21 @@ def to_json(content):
         return json.dumps(content)
 
 
-@crud_router.get("/crud/maps")
-async def crud__maps(response: Response) -> JSONResponse:
-    """
-    Returns the local maps.json file.
-    """
-
-    try:
-        status_code = 200
-        with open('app/maps.json', 'r') as f:
-            json_data = json.load(f)
-
-        db.logger.info(f"Successfully loaded maps.json file.")
-    except Exception as e:
-        db.logger.error(f"Could not load maps.json file. Error: {e}")
-        json_data = {}
-        status_code = 400
-
-    return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
-
-
 @crud_router.post("/crud/insert")
 async def crud__insert(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Inserts data into the specified table.
 
-    Args:
-        - response (Response): The response object.
-        - table_name (str): The name of the table to insert data into.
-        - data (dict): The data to be inserted.
+    <h3>Args:</h3>
+        <ul>
+        <li>table_name (str): The name of the table to insert data into.</li>
+        <li>body (dict): Data in the form of a list of dictionaries.</li>
+        </ul>
 
-    Returns:
-        - JSONResponse: The JSON response containing the inserted data and a message.
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The JSON response containing the inserted data and a message.</li>
+        </ul>
     """
 
     table_cls = TABLE_MAP.get(table_name)
@@ -97,36 +80,44 @@ async def crud__select(response: Response, table_name: str = None, data: dict = 
     Selects data from a specified table in the database based on the provided filters.
 
     The parameters should be formatted as follows:
-    >>> {
-            "lambda_args": {
-                "arg1": "value1",
-                "arg2": "value2",
-            }
-            "filters": {
-                "or": {
-                    "name": ["value1", "value2"],
-                },
-                "and": {
-                    "id": [1]
-                },
-                "like": {
-                    "name": ["aaa", "bbb"],
-                },
-                "not_like": {
-                    "name": ["ccc"],
-                },      
-            }
+    <pre>
+    <code>
+    {
+        "lambda_args": {
+            "arg1": "value1",
+            "arg2": "value2",
         }
+        "filters": {
+            "or": {
+                "name": ["value1", "value2"],
+            },
+            "and": {
+                "id": [1]
+            },
+            "like": {
+                "name": ["aaa", "bbb"],
+            },
+            "not_like": {
+                "name": ["ccc"],
+            },      
+        }
+    }
+    </code>
+    </pre>
 
-    *In case of no filters, simply omit the "filters" key.
+    In case of no filters, simply omit the "filters" key.
 
-    Args:
-        - response (Response): The response object.
-        - table_name (str): The name of the table to select data from.
-        - data (dict): The request body containing the filters and other parameters.
-
-    Returns:
-        - JSONResponse: The response containing the selected data and a message.
+    <h3>Args:</h3>
+        <ul>
+        <li>response (Response): The response object.</li>
+        <li>table_name (str): The name of the table to select data from.</li>
+        <li>data (dict): The request body containing the filters and other parameters.</li>
+        </ul>
+        
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The response containing the selected data and a message.</li>
+        </ul>
     """
   
     table_cls = TABLE_MAP.get(table_name)
@@ -162,18 +153,21 @@ async def crud__select(response: Response, table_name: str = None, data: dict = 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
-@crud_router.post("/crud/update")
+@crud_router.put("/crud/update")
 async def crud__update(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Update a record in the specified table.
 
-    Args:
-        - response (Response): The response object.
-        - table_name (str): The name of the table to update.
-        - data (dict): The data to update.
+    <h3>Args:</h3>
+        <ul>
+        <li>table_name (str): The name of the table to update.</li>
+        <li>data (dict): The data to update.</li>
+        </ul>
 
-    Returns:
-        - JSONResponse: The JSON response containing the updated data and message.
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The JSON response containing the updated data and message.</li>
+        </ul>
     """
     table_cls = TABLE_MAP.get(table_name)
     if table_cls is None:
@@ -195,19 +189,28 @@ async def crud__update(response: Response, table_name: str = None, data: dict = 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
-@crud_router.post("/crud/delete")
+@crud_router.delete("/crud/delete")
 async def crud__delete(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
     Delete records from a specified table based on the provided filters. Filters example:
-    >>> {'id': [1, 2, 3]}
+    <pre>
+    <code>
+    {
+        'id': [1, 2, 3]
+    }
+    </code>
+    </pre>
 
-    Args:
-        - response (Response): The response object.
-        - table_name (str): The name of the table to delete records from.
-        - data (dict): The request body containing the filters.
+    <h3>Args:</h3>
+        <ul>
+        <li>table_name (str): The name of the table to delete records from.</li>
+        <li>data (dict): The request body containing the filters.</li>
+        </ul>
 
-    Returns:
-        - JSONResponse: The JSON response containing the deleted data and a message.
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The JSON response containing the deleted data and a message.</li>
+        </ul>
     """
     filters = data.pop('filters')
     if not filters:

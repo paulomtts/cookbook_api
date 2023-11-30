@@ -6,8 +6,35 @@ from app.orm import SuccessMessages
 from app.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY
 from setup import db
 
+import json
+
 
 routes_router = APIRouter()
+
+
+@routes_router.get("/custom/maps")
+async def crud__maps(response: Response) -> JSONResponse:
+    """
+    Obtain the maps.json file.
+
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The JSON response containing the json.</li>
+        </ul>
+    """
+
+    try:
+        status_code = 200
+        with open('app/maps.json', 'r') as f:
+            json_data = json.load(f)
+
+        db.logger.info(f"Successfully loaded maps.json file.")
+    except Exception as e:
+        db.logger.error(f"Could not load maps.json file. Error: {e}")
+        json_data = {}
+        status_code = 400
+
+    return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
 
 
 @routes_router.post("/custom/submit_recipe")
@@ -15,12 +42,15 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
     """
     Submit a recipe to the database.
 
-    Args:
-        - response (Response): The response object.
-        - data (dict): The request data containing the form data.
+    <h3>Args:</h3>
+        <ul>
+        <li>data (dict): The request data containing the form data.</li>
+        </ul>
 
-    Returns:
-        - JSONResponse: The JSON response containing the submitted recipe data and a message.
+    <h3>Returns:</h3>
+        <ul>
+        <li>JSONResponse: The JSON response containing the submitted recipe data and a message.</li>
+        </ul>
     """
 
     form_data: dict = data.get('form_data')
