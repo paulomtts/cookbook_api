@@ -1,5 +1,5 @@
 # cookbook_api 🍔
-This is the API for the Cookbook app! The goal is to be a simple demonstration of SQLAlchemy, SQLModel & Pandas usage in building easy to read routes. Here are a few features:
+This is the API for the Cookbook app! The goal is to be a simple demonstration of SQLAlchemy, SQLModel & Pandas usage in building easy to read interactions with a database. Here are a few features:
 
 - Nested, bulk & returning operations
 - Returnings allow for OOP during chained operations
@@ -7,6 +7,7 @@ This is the API for the Cookbook app! The goal is to be a simple demonstration o
 - Allows for complex queries (see queries.py and its use in routes.py's /custom/submit_recipe)
 - Writing complex chained operations is a piece of 🍰
 
+To achieve this, simply write a callback like the one below:
 ```
 @db.catching(messages=SuccessMessages('Submission succesful.'))
 def submit_data(form_data, upsert_data):
