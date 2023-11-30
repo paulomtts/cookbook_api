@@ -1,8 +1,8 @@
-uvicorn[standard]==0.21.1
-fastapi==0.95.0
-sqlalchemy==1.4.41
-sqlmodel==0.0.8
-psycopg2==2.9.5
-pandas==1.4.4
-cryptography==37.0.1
+uvicorn[standard]==0.22.0
+fastapi==0.95.2
+sqlalchemy==2.0.23
+sqlmodel==0.0.12
+psycopg2==2.9.6
+pandas==2.0.1
+cryptography==40.0.2
 python-multipart==0.0.6

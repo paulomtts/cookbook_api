@@ -30,16 +30,17 @@ CREATE TABLE recipes (
     description VARCHAR(255),
     period VARCHAR(45),
     type VARCHAR(45),
+    presentation VARCHAR(45),
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
 CREATE TABLE recipe_ingredients (
     id SERIAL PRIMARY KEY,
-    id_recipe INT REFERENCES recipes(id),
-    id_ingredient INT REFERENCES ingredients(id),
+    id_recipe INT REFERENCES recipes(id) NOT NULL,
+    id_ingredient INT REFERENCES ingredients(id) NOT NULL,
     quantity NUMERIC(10, 2) NOT NULL,
-    id_unit INT REFERENCES units(id),
+    id_unit INT REFERENCES units(id) NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

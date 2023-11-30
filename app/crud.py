@@ -1,15 +1,12 @@
+from fastapi import APIRouter, Response, Body
+from fastapi.responses import JSONResponse, Response
+
+from app.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.queries import CATEGORY_QUERY, UNIT_QUERY, RECIPE_QUERY, INGREDIENT_QUERY, RECIPE_INGREDIENT\
-                        , RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY\
-                        , RECIPE_COMPOSITION_SNAPSHOT_QUERY
+from app.orm import SuccessMessages
 from setup import db
 
-
-from fastapi import APIRouter, Response, status, Body
-from fastapi.responses import JSONResponse, Response
-from sqlalchemy import or_, and_
-from sqlmodel import text
-
+from collections import namedtuple
 import pandas as pd
 import json
 
@@ -17,20 +14,7 @@ import json
 crud_router = APIRouter()
 
 
-query_switch = {
-    'categories': CATEGORY_QUERY
-    , 'units': UNIT_QUERY
-    , 'recipes': RECIPE_QUERY
-    , 'ingredients': INGREDIENT_QUERY
-    , 'recipe_ingredients': RECIPE_INGREDIENT
-    , 'recipe_composition_empty': RECIPE_COMPOSITION_EMPTY_QUERY
-    , 'recipe_composition_loaded': RECIPE_COMPOSITION_LOADED_QUERY
-    , 'recipe_composition_snapshot': RECIPE_COMPOSITION_SNAPSHOT_QUERY
-}
-
-callable_queries = [RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY]
-
-table_switch = {
+TABLE_MAP = {
     'categories': Categories
     , 'units': Units
     , 'recipes': Recipes
@@ -38,9 +22,23 @@ table_switch = {
     , 'recipe_ingredients': RecipeIngredients
 }
 
+ComplexQuery = namedtuple('ComplexQuery', ['statement', 'client_name'])
+QUERY_MAP = {
+    'recipe_composition_empty': ComplexQuery(RECIPE_COMPOSITION_EMPTY_QUERY, 'empty Recipe composition')
+    , 'recipe_composition_loaded': ComplexQuery(RECIPE_COMPOSITION_LOADED_QUERY, 'loaded Recipe composition')
+    , 'recipe_composition_snapshot': ComplexQuery(RECIPE_COMPOSITION_SNAPSHOT_QUERY, 'Recipe')
+}
+
+
+def to_json(content):
+    if isinstance(content, pd.DataFrame):
+        return content.to_json(orient='records')
+    else:
+        return json.dumps(content)
+
 
 @crud_router.get("/crud/maps")
-async def crud_maps(response: Response) -> JSONResponse:
+async def crud__maps(response: Response) -> JSONResponse:
     """
     Returns the local maps.json file.
     """
@@ -49,6 +47,8 @@ async def crud_maps(response: Response) -> JSONResponse:
         status_code = 200
         with open('app/maps.json', 'r') as f:
             json_data = json.load(f)
+
+        db.logger.info(f"Successfully loaded maps.json file.")
     except Exception as e:
         db.logger.error(f"Could not load maps.json file. Error: {e}")
         json_data = {}
@@ -57,35 +57,45 @@ async def crud_maps(response: Response) -> JSONResponse:
     return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
 
 
-@crud_router.post("/crud/insert", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
-async def crud_insert(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
-
+@crud_router.post("/crud/insert")
+async def crud__insert(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
-    Insert a new row into a table. Data example:
-    >>> {
-    >>>    "name": "Some name"
-    >>> }
+    Inserts data into the specified table.
+
+    Args:
+        - response (Response): The response object.
+        - table_name (str): The name of the table to insert data into.
+        - data (dict): The data to be inserted.
+
+    Returns:
+        - JSONResponse: The JSON response containing the inserted data and a message.
     """
 
-    table_cls = table_switch[table_name]
-    table_object = table_cls(**data)
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
+    
+    messages = SuccessMessages(
+        client=f"Successfuly submited to {table_name.capitalize()}."
+        , logger=f"Insert in <{table_name.capitalize()}> was successful. Data: \n{data}\n"
+    )
 
-    messages = {
-        'client': f"Inserted data in {table_name.capitalize()}s."
-        , 'logger': f"Insert in {table_name.capitalize()} was successful. \n\nData: {data}\n"
-    }
-    _, status_code, message = db.insert(table_object, messages)
-   
-    return JSONResponse(status_code=status_code, content={'message': message}, headers=response.headers)
+    @db.catching(messages=messages)
+    def insert_data(table_cls, data):
+        return db.insert(table_cls, [data])
+    
+    content, status_code, message = insert_data(table_cls, data)
+    json_data = to_json(content)
+
+    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
 @crud_router.post("/crud/select")
-async def crud_select(response: Response, table_name: str = None, structured: bool = False, data: dict = Body(...)) -> JSONResponse:
+async def crud__select(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
-    Query the database for a table. The statements used here are meant to make
-    tables readable, often joining with other tables so as to provide more than
-    foreign id's on a given column.
-    
+    Selects data from a specified table in the database based on the provided filters.
+
     The parameters should be formatted as follows:
     >>> {
             "lambda_args": {
@@ -108,133 +118,117 @@ async def crud_select(response: Response, table_name: str = None, structured: bo
             }
         }
 
-    * In case of no filters, simply omit the "filters" key.
+    *In case of no filters, simply omit the "filters" key.
+
+    Args:
+        - response (Response): The response object.
+        - table_name (str): The name of the table to select data from.
+        - data (dict): The request body containing the filters and other parameters.
+
+    Returns:
+        - JSONResponse: The response containing the selected data and a message.
     """
+  
+    table_cls = TABLE_MAP.get(table_name)
+    query = QUERY_MAP.get(table_name, ComplexQuery(None, None))
+
     
-    statement = query_switch[table_name]
-
-    if statement in callable_queries:
-        callable_args = data.get('lambda_args', {})
-        statement = statement(**callable_args)
-
+    statement = query.statement if not callable(query.statement)\
+                                else query.statement(**data.get('lambda_args', {}))  
+    
+    if table_cls is None and statement is None:
+        db.logger.warning(f"Incoming data did not pass validation.")
+        return JSONResponse(status_code=400, content={"message": f"Client provided an invalid table name: <{table_name}>"}, headers=response.headers)
 
     filters: dict = data.get('filters', {})
-    conditions: list = []
+    messages = SuccessMessages(
+        client=f"{table_name.capitalize()[:-1]} retrieved." if table_cls else f"{query.client_name.capitalize()} retrieved."
+        , logger=f"Querying <{table_name}> was succesful! Filters: {filters}"
+    )
 
-    if 'or' in filters:
-        or_conditions = [text(f"{attr} = {val}") for attr, values in filters['or'].items() for val in values]
-        conditions.append(or_(*or_conditions))
+    @db.catching(messages=messages)
+    def read_data(table_cls, statement, filters):
+        return db.query(table_cls=table_cls, statement=statement, filters=filters) # uses either table_cls or statement
 
-    if 'and' in filters:
-        and_conditions = [text(f"{attr} = {val}") for attr, values in filters['and'].items() for val in values]
-        conditions.append(and_(*and_conditions))
-
-    if 'like' in filters:
-        like_conditions = [text(f"{attr} LIKE {val}") for attr, values in filters['like'].items() for val in values]
-        conditions.append(or_(*like_conditions))
-
-    if 'not_like' in filters:
-        not_like_conditions = [text(f"{attr} NOT LIKE {val}") for attr, values in filters['like'].items() for val in values]
-        conditions.append(and_(*not_like_conditions))
-
-    if conditions:
-        statement = statement.where(and_(*conditions))
-
-    read_data = lambda statement: db.session.execute(statement).fetchall()
-    messages = {
-        'client': f"{table_name.replace('_', ' ').capitalize()}s retrieved."
-        , 'logger': f"Querying <{table_name}s> was succesful!"
-    }
-    results, status_code, message = db.touch(read_data, [statement], messages, True)
-
-    results = [dict(row) for row in results]
-    if results:
-        json_data = json.dumps(results, default=str)
-    else:
-        json_data = json.dumps([{}], default=str)
-
-    if results and structured:
-        df = pd.DataFrame(results, columns=statement.columns.keys())
-        df.index = df['id']
-
-        if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
-        if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
-        
-        data_dict = df.to_dict(orient='index')
-        json_data = json.dumps(data_dict, indent=4)
-
-
+    content, status_code, message = read_data(table_cls, statement, filters)
+    json_data = to_json(content)
+    
     if status_code == 204:
         return Response(status_code=status_code, headers=response.headers)
+
+    if status_code != 200:
+        return JSONResponse(status_code=status_code, content={'message': message}, headers=response.headers)
 
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
 @crud_router.post("/crud/update")
-async def crud_update(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud__update(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
-    Insert a new row into a table.
+    Update a record in the specified table.
+
+    Args:
+        - response (Response): The response object.
+        - table_name (str): The name of the table to update.
+        - data (dict): The data to update.
+
+    Returns:
+        - JSONResponse: The JSON response containing the updated data and message.
     """
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
 
-    table_cls = table_switch[table_name]
-    row_id = data.pop('id')
+    messages = SuccessMessages(
+        client=f"{table_name.capitalize()} updated."
+        , logger=f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
+    )
 
-    messages = {
-        'client': f"{table_name.capitalize()} updated."
-        , 'logger': f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
-    }
-    _, status_code, message = db.update(table_cls, [table_cls.id == row_id], data, messages)
+    @db.catching(messages=messages)
+    def update_data(table_cls, data):
+        return db.update(table_cls, [data])
 
-    return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
+    content, status_code, message = update_data(table_cls, data)
+    json_data = to_json(content)
+
+    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
 
 
 @crud_router.post("/crud/delete")
-async def crud_delete(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
+async def crud__delete(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
     """
-    Delete a row from a table. Filters example:
-    >>> {
-    >>>    'id': [1, 2, 3]
-    >>> }
-    """
+    Delete records from a specified table based on the provided filters. Filters example:
+    >>> {'id': [1, 2, 3]}
 
+    Args:
+        - response (Response): The response object.
+        - table_name (str): The name of the table to delete records from.
+        - data (dict): The request body containing the filters.
+
+    Returns:
+        - JSONResponse: The JSON response containing the deleted data and a message.
+    """
     filters = data.pop('filters')
     if not filters:
-        db.logger.warning(f"Client did not provide any filters.")
+        db.logger.warning(f"Insufficient data provided by client.")
         return JSONResponse(status_code=400, content={"message": "No filters were received by the server."}, headers=response.headers)
 
-    table_cls = table_switch[table_name]
+    table_cls = TABLE_MAP.get(table_name)
+    if table_cls is None:
+        db.logger.warning(f"Client provided invalid table name: {table_name}")
+        return JSONResponse(status_code=400, content={"message": f"Invalid table name: {table_name}"}, headers=response.headers)
 
-    messages = {
-        'client': f"{table_name.capitalize()} deleted."
-        , 'logger': f"Delete in {table_name.capitalize()} was successful. \n\nFilters: {filters}\n"
-    }
-    _, status_code, message = db.delete(table_cls, filters, messages)
+    messages = SuccessMessages(
+        client=f"{table_name.capitalize()} deleted."
+        , logger=f"Delete in {table_name.capitalize()} was successful. \n\nFilters: {filters}\n"
+    )
+
+    @db.catching(messages=messages)
+    def delete_data(table_cls, filters):
+        return db.delete(table_cls, filters)
     
-    return JSONResponse(status_code=status_code, content={"message": message}, headers=response.headers)
-
-
-@crud_router.post("/crud/insert_bulk")
-async def crud_insert_bulk(response: Response, table_name: str = None, data: dict = Body(...)) -> JSONResponse:
-    """
-    Insert multiple rows into a table. Data example:
-    >>> [
-    >>>    {
-    >>>        "name": "Some name"
-    >>>    },
-    >>>    {
-    >>>        "name": "Some other name"
-    >>>    }
-    >>> ]
-    """
-
-    table_cls = table_switch[table_name]
-    data_list = data.get('json_data', [])
-    print(data_list)
-
-    messages = {
-        'client': f"Succesfully inserted data in {table_name.capitalize()}."
-        , 'logger': f"Insert in {table_name.capitalize()} was successful. \n\nData: {data_list}\n"
-    }
-    _, status_code, message = db.bulk_insert(table_cls, data_list, messages)
-
-    return JSONResponse(status_code=status_code, content={'message': message}, headers=response.headers)
+    content, status_code, message = delete_data(table_cls, filters)
+    json_data = to_json(content)
+    
+    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)

@@ -1,10 +1,11 @@
-from app.orm import DBClient
+from app.orm import DBManager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-import logging
-import logging.config
+import logging, logging.config
+import dotenv
+import os
 
 
 logging.config.dictConfig({
@@ -47,7 +48,19 @@ app.add_middleware( # necessary to allow requests from local services
     allow_credentials=True,
 )
 
-db = DBClient('postgresql', 'postgres', 'postgres', 'localhost', '5432', 'postgres', 'cookbook', logger)
+dotenv.load_dotenv()
 
-# from app.models import Recipes
-# db.insert_dummy_data(Recipe)
+db_type = os.environ.get('DB_TYPE')
+db_user = os.environ.get('DB_USER')
+db_password = os.environ.get('DB_PASSWORD')
+db_host = os.environ.get('DB_HOST')
+db_port = os.environ.get('DB_PORT')
+db_name = os.environ.get('DB_NAME')
+
+try:
+    if all([db_type, db_user, db_password, db_host, db_port, db_name]):
+        db = DBManager(db_type, db_user, db_password, db_host, db_port, db_user, db_name, logger)
+    else:
+        raise Exception('Could not find all environment variables for database connection.')
+except Exception as e:
+    logger.error(e)

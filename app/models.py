@@ -8,9 +8,13 @@ REGEX_WORDS = r'^[a-zA-Z\s]+$'
 REGEX_INTEGERS = r'^[0-9]+$'
 
 
+datetime_factory = lambda: datetime.utcnow()
+
+
 class DatetimeModel(SQLModel):
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
+    created_at: Optional[datetime] = Field(default_factory=datetime_factory) # reason: sqalchemy's .on_conflict_do_update() doesn't seem to trigger sqlmodel's onupdate
+    updated_at: Optional[datetime] = Field(default_factory=datetime_factory)
+
 
 class Categories(DatetimeModel, table=True):
     __tablename__ = 'categories'
@@ -35,6 +39,7 @@ class Recipes(DatetimeModel, table=True):
     description: str = Field(default=None)
     period: str = Field(default=None, regex=REGEX_WORDS)
     type: str = Field(default=None, regex=REGEX_WORDS)
+    presentation: str = Field(default=None, regex=REGEX_WORDS)
 
 class Ingredients(DatetimeModel, table=True):
     __tablename__ = 'ingredients'
