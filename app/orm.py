@@ -6,6 +6,8 @@ from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 from sqlalchemy.sql.selectable import Select
 
+from app.models import datetime_factory
+
 from collections import namedtuple
 from typing import List, Any
 from logging import Logger
@@ -80,7 +82,7 @@ ERROR_MAP = {
 class DBManager():
     """
     A class that manages the database connection and provides methods for executing queries and manipulating data using
-    SQLAlchemy's Session API. Note that all methods are capable of bulk operations and returnings in the form of
+    SQLAlchemy ORM. Note that all methods are capable of bulk operations and returnings in the form of
     either a DataFrame or a namedtuple, the latter meant for providing an object whose properties can be accessed during
     chained operations.
 
@@ -170,26 +172,17 @@ class DBManager():
             - pd.DataFrame: The parsed result as a pandas DataFrame.
         """
 
-        rows_as_dicts = []
-        for row in returnings:
+        def to_dict(row):
             dct = dict(row[0])
             dct.pop('_sa_instance_state', None)
-            rows_as_dicts.append(dct)
+            return dct
+        
+        rows_as_dicts = list(map(to_dict, returnings))
 
         if as_dict:
             return rows_as_dicts
 
         return self._map_dataframe(pd.DataFrame(rows_as_dicts), mapping_cls)
-    
-
-    def current_datetime(self) -> str:
-        """
-        Returns the current datetime in the database.
-
-        Returns:
-            - str: The current datetime in the database.
-        """
-        return datetime.datetime.utcnow()
     
 
     def query(self, table_cls, statement: Select = None, filters: dict = None, order_by: List[str] = None, single: bool = None):
@@ -303,7 +296,7 @@ class DBManager():
                 data.pop('created_at')
 
             if data.get('updated_at'):
-                data['updated_at'] = self.current_datetime()
+                data['updated_at'] = datetime_factory()
 
             conditions = [getattr(table_cls, pk) == data[pk] for pk in pk_columns]
             statement = update(table_cls).where(*conditions).values(data).returning(table_cls)
@@ -366,7 +359,7 @@ class DBManager():
                 data.pop('created_at')
 
             if data.get('updated_at'):
-                data['updated_at'] = self.current_datetime()
+                data['updated_at'] = datetime_factory()
 
             statement = postgres_upsert(table_cls).values(data)\
                         .on_conflict_do_update(index_elements=[table_cls.id], set_=data)\

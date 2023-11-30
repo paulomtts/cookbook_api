@@ -6,7 +6,6 @@ from sqlmodel import select, func, literal, case
 from app.models import Units, Ingredients, RecipeIngredients
 
 
-
 # These queries allow for a single table to exhibit all ingredients, including those that are not part of the recipe
 # while also allowing for the recipe ingredients to be quantified. The division between three states is necessary
 # to allow for state comparisons. One for when no Recipe is selected, another for when a recipe has been clicked,
