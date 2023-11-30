@@ -83,7 +83,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
         recipe_ingredients_snapshot_df = db.query(None, SNAPSHOT_QUERY(form_object.id))
 
         json_data = {
-            'form_data': form_object._df.to_json(orient='records'),
+            'form_data': form_object.as_json,
             'recipe_data': recipes_df.to_json(orient='records'),
             'recipe_ingredient_loaded_data': recipe_ingredients_loaded_df.to_json(orient='records'),
             'recipe_ingredient_snapshot_data': recipe_ingredients_snapshot_df.to_json(orient='records'),

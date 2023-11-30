@@ -13,6 +13,7 @@ from typing import List, Any
 from logging import Logger
 
 import pandas as pd
+import json
 
 
 SuccessMessages = namedtuple('SuccessMessages', ['client', 'logger'], defaults=['Operation was successful.', None])
@@ -134,8 +135,10 @@ class DBManager():
             self.logger.info(f"Could not find a session to close. Gracefully exiting.")
 
     def _single(self, table_cls, df: pd.DataFrame) -> namedtuple:
-            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns + ['_df'])
-            return tuple_cls(**df.iloc[0].to_dict(), _df=df)
+        json_data = df.to_json(orient='records')
+        json_object = json.loads(json_data)[0]
+        tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), list(json_object.keys()) + ['as_json'])
+        return tuple_cls(**json_object, as_json=json_object)
 
    
     def _map_dataframe(self, df: pd.DataFrame, mapping_cls: Any) -> pd.DataFrame:
@@ -393,7 +396,7 @@ class DBManager():
             """
             def decorator(func):
                 def wrapper(*args, **kwargs):
-                    try:
+                    # try:
                         content = func(*args, **kwargs)
                         self.session.commit()
 
@@ -401,12 +404,12 @@ class DBManager():
                             self.logger.info(messages.logger)
 
                         return content, STATUS_MAP[200], messages.client if messages else 'Operation was successful.'
-                    except tuple(ERROR_MAP.keys()) as e:
-                        self.session.rollback()
+                    # except tuple(ERROR_MAP.keys()) as e:
+                    #     self.session.rollback()
 
-                        error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                        self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
+                    #     error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
+                    #     self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
 
-                        return [], error.status_code, error.client_message
+                    #     return [], error.status_code, error.client_message
                 return wrapper
             return decorator
