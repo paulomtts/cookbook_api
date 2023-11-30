@@ -23,3 +23,4 @@ This project is usable out of the box. Don't forget to setup your enviroment var
 ## Comming up
 - [ ] Google OAuth
 - [ ] Image files upload route
+- [ ] Dockerfile
