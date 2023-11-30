@@ -11,7 +11,6 @@ from app.models import datetime_factory
 from collections import namedtuple
 from typing import List, Any
 from logging import Logger
-import datetime
 
 import pandas as pd
 
