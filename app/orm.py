@@ -370,7 +370,8 @@ class DBManager():
         df = self.parse_returnings(results, mapping_cls=table_cls)
 
         if single:
-            return table_cls(**df.iloc[0].to_dict())
+            tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), df.columns)
+            return tuple_cls(**df.iloc[0].to_dict())
         
         return df
 
