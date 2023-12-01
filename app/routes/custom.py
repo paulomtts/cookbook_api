@@ -1,18 +1,16 @@
 from fastapi import APIRouter, Response, Body
 from fastapi.responses import JSONResponse, Response
 
-from app.models import  Recipes, RecipeIngredients
-from app.orm import SuccessMessages
-from app.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY
+from app.core.models import  Recipes, RecipeIngredients
+from app.core.orm import SuccessMessages
+from app.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY
 from setup import db
 
-import json
+
+customRoutes_router = APIRouter()
 
 
-routes_router = APIRouter()
-
-
-@routes_router.get("/custom/maps")
+@customRoutes_router.get("/custom/maps")
 async def crud__maps(response: Response) -> JSONResponse:
     """
     Obtain the maps.json file.
@@ -25,8 +23,8 @@ async def crud__maps(response: Response) -> JSONResponse:
 
     try:
         status_code = 200
-        with open('app/maps.json', 'r') as f:
-            json_data = json.load(f)
+        with open('maps.json', 'r') as f:
+            json_data = f.read()
 
         db.logger.info(f"Successfully loaded maps.json file.")
     except Exception as e:
@@ -34,10 +32,10 @@ async def crud__maps(response: Response) -> JSONResponse:
         json_data = {}
         status_code = 400
 
-    return JSONResponse(status_code=status_code, content=json_data, headers=response.headers)
+    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=response.headers)
 
 
-@routes_router.post("/custom/submit_recipe")
+@customRoutes_router.post("/custom/submit_recipe")
 async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> JSONResponse:
     """
     Submit a recipe to the database.
@@ -72,6 +70,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
     def upsert_recipe(form_data, insert_rows, delete_rows):
 
         form_object = db.upsert(Recipes, [form_data], single=True)
+        print(form_object)
         
         db.upsert(RecipeIngredients, [{**row, 'id_recipe': form_object.id} for row in insert_rows])
         db.delete(RecipeIngredients, {'id': [row.get('id_recipe_ingredient') for row in delete_rows]})
@@ -83,7 +82,7 @@ async def routes__submit_recipe(response: Response, data: dict = Body(...)) -> J
         recipe_ingredients_snapshot_df = db.query(None, SNAPSHOT_QUERY(form_object.id))
 
         json_data = {
-            'form_data': form_object.as_json,
+            'form_data': form_object,
             'recipe_data': recipes_df.to_json(orient='records'),
             'recipe_ingredient_loaded_data': recipe_ingredients_loaded_df.to_json(orient='records'),
             'recipe_ingredient_snapshot_data': recipe_ingredients_snapshot_df.to_json(orient='records'),

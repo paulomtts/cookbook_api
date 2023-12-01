@@ -3,7 +3,7 @@
 # imported into the CRUD router for use.
 
 from sqlmodel import select, func, literal, case
-from app.models import Units, Ingredients, RecipeIngredients
+from app.core.models import Units, Ingredients, RecipeIngredients
 
 
 # These queries allow for a single table to exhibit all ingredients, including those that are not part of the recipe

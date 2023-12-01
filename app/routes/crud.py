@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Response, Body
 from fastapi.responses import JSONResponse, Response
 
-from app.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
-from app.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.orm import SuccessMessages
+from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
+from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
+from app.core.orm import SuccessMessages
 from setup import db
 
 from collections import namedtuple
@@ -61,7 +61,7 @@ async def crud__insert(response: Response, table_name: str = None, data: dict = 
     
     messages = SuccessMessages(
         client=f"Successfuly submited to {table_name.capitalize()}."
-        , logger=f"Insert in <{table_name.capitalize()}> was successful. Data: \n{data}\n"
+        , logger=f"Insert in <{table_name.capitalize()}> was successful. Data: {data}"
     )
 
     @db.catching(messages=messages)
@@ -176,7 +176,7 @@ async def crud__update(response: Response, table_name: str = None, data: dict = 
 
     messages = SuccessMessages(
         client=f"{table_name.capitalize()} updated."
-        , logger=f"Update in {table_name.capitalize()} was successful. \n\nData: {data}\n"
+        , logger=f"Update in {table_name.capitalize()} was successful. Data: {data}"
     )
 
     @db.catching(messages=messages)
@@ -224,7 +224,7 @@ async def crud__delete(response: Response, table_name: str = None, data: dict = 
 
     messages = SuccessMessages(
         client=f"{table_name.capitalize()} deleted."
-        , logger=f"Delete in {table_name.capitalize()} was successful. \n\nFilters: {filters}\n"
+        , logger=f"Delete in {table_name.capitalize()} was successful. Filters: {filters}"
     )
 
     @db.catching(messages=messages)
