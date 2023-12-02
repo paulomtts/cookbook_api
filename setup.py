@@ -1,4 +1,4 @@
-from app.orm import DBManager
+from app.core.orm import DBManager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
