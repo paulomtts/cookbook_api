@@ -2,8 +2,8 @@ from fastapi.responses import JSONResponse
 import uvicorn
 
 from setup import app
-from app.routes.crud import crud_router
-from app.routes.custom import customRoutes_router
+from app.core.crud import crud_router
+from app.custom.custom import customRoutes_router
 
 
 app.include_router(crud_router)
