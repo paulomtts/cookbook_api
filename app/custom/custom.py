@@ -98,7 +98,8 @@ async def submit_recipe(response: Response, data: dict = Body(...)) -> JSONRespo
 
 
 @customRoutes_router.delete("/custom/delete_recipe")
-async def delete_recipe(response: Response, data: RecipeDeleteInput) -> DefaultOutput:
+# async def delete_recipe(response: Response, data: RecipeDeleteInput) -> DefaultOutput:
+async def delete_recipe(response: Response, data: RecipeDeleteInput) -> RecipeDeleteOutput:
     """
     Delete a recipe from the database. The body should be as follows:
     <pre>
@@ -120,58 +121,58 @@ async def delete_recipe(response: Response, data: RecipeDeleteInput) -> DefaultO
         </ul>
     """
 
-    # @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
-    # def touch(recipe: DeleteData, composition: DeleteData):
-        
-    #     db.delete(RecipeIngredients, {composition.field: composition.ids})
-    #     db.delete(Recipes, {recipe.field: recipe.ids})
-    #     db.session.commit()
-
-    #     recipes_df = db.query(Recipes)
-    #     recipe_ingredients_empty_df = db.query(None, EMPTY_QUERY)
-
-    #     json_data = {
-    #         'recipe_data': recipes_df.to_json(orient='records'),
-    #         'recipe_ingredient_empty_data': recipe_ingredients_empty_df.to_json(orient='records'),
-    #     }
-
-    #     return json_data
-    
-    # json_data, status_code, message = touch(data.recipe, data.composition)
-
-    # return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
     @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
-    def touch__delete_recipe(recipe: DeleteData, composition: DeleteData):
+    def touch(recipe: DeleteData, composition: DeleteData):
         
         db.delete(RecipeIngredients, {composition.field: composition.ids})
         db.delete(Recipes, {recipe.field: recipe.ids})
         db.session.commit()
 
-        recipes = db.query(Recipes).to_json(orient='records')
-        recipe_ingredients = db.query(None, EMPTY_QUERY).to_json(orient='records')
-        # recipe_ingredients = db.query(Recipes, EMPTY_QUERY).to_json(orient='records')
+        recipes_df = db.query(Recipes)
+        recipe_ingredients_empty_df = db.query(None, EMPTY_QUERY)
 
-        content = RecipeDeleteOutput(
-            recipes = recipes
-            , recipe_ingredients = recipe_ingredients
-        )
+        json_data = {
+            'recipe_data': recipes_df.to_json(orient='records'),
+            'recipe_ingredient_empty_data': recipe_ingredients_empty_df.to_json(orient='records'),
+        }
 
-        return DefaultOutput(
-            data = content
-            , status = 200
-            , message = 'Recipe deleted successfully.'
-        )
-
-        # json_data = {
-        #     'recipe_data': recipes.to_json(orient='records'),
-        #     'recipe_ingredient_empty_data': recipe_ingredients.to_json(orient='records'),
-        # }
-
-        # return json_data
+        return json_data
     
-    # json_data, status_code, message = touch__delete_recipe(data.recipe, data.composition)
-    result = touch__delete_recipe(data.recipe, data.composition)
+    json_data, status_code, message = touch(data.recipe, data.composition)
 
-    # return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
-    # return json_data
-    return result
+    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
+    # @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
+    # def touch__delete_recipe(recipe: DeleteData, composition: DeleteData):
+        
+    #     db.delete(RecipeIngredients, {composition.field: composition.ids})
+    #     db.delete(Recipes, {recipe.field: recipe.ids})
+    #     db.session.commit()
+
+    #     recipes = db.query(Recipes).to_json(orient='records')
+    #     recipe_ingredients = db.query(None, EMPTY_QUERY).to_json(orient='records')
+    #     # recipe_ingredients = db.query(Recipes, EMPTY_QUERY).to_json(orient='records')
+
+    #     content = RecipeDeleteOutput(
+    #         recipes = recipes
+    #         , recipe_ingredients = recipe_ingredients
+    #     )
+
+    #     return DefaultOutput(
+    #         data = content
+    #         , status = 200
+    #         , message = 'Recipe deleted successfully.'
+    #     )
+
+    #     # json_data = {
+    #     #     'recipe_data': recipes.to_json(orient='records'),
+    #     #     'recipe_ingredient_empty_data': recipe_ingredients.to_json(orient='records'),
+    #     # }
+
+    #     # return json_data
+    
+    # # json_data, status_code, message = touch__delete_recipe(data.recipe, data.composition)
+    # result = touch__delete_recipe(data.recipe, data.composition)
+
+    # # return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
+    # # return json_data
+    # return result
