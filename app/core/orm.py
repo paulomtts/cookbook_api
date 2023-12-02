@@ -6,6 +6,8 @@ from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 from sqlalchemy.sql.selectable import Select
 
+from app.core.schemas import DBOutput, QueryFilters
+
 from collections import namedtuple
 from datetime import datetime
 from typing import List, Any
@@ -123,17 +125,6 @@ class DBManager():
         self.logger = logger
 
 
-    def __del__(self):
-        """
-        Automatically close the session and release resources when this object is about to be destroyed.
-        """
-        try:
-            self.session.close()
-            self.logger.info(f"Gracefully closed a session.")
-        except AttributeError:
-            self.logger.info(f"Could not find a session to close. Gracefully exiting.")
-
-
     def _map_dataframe(self, df: pd.DataFrame, mapping_cls: Any):
         """
         Maps a dataframe to the specified mapping class.
@@ -198,7 +189,7 @@ class DBManager():
         return tuple_cls(**dct, as_json=json_data)
     
 
-    def query(self, table_cls, statement: Select = None, filters: dict = None, order_by: List[str] = None, single: bool = None):
+    def query(self, table_cls, statement: Select = None, filters: QueryFilters = None, order_by: List[str] = None, single: bool = None):
         """
         Executes a database query based on the provided parameters. Accepts either a table class or a select statement. If
         a statement is provided, filters and order_by are ignored.
@@ -221,26 +212,24 @@ class DBManager():
             raise ValueError("Only one of table_cls or statement can be specified.")
 
         if table_cls:
-            if filters is None:
-                filters = {}
 
             conditions = []
+            if filters:
+                if filters.and_:
+                    and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.and_.items()]
+                    conditions.append(and_(*and_conditions))
 
-            if 'and' in filters:
-                and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['and'].items()]
-                conditions.append(and_(*and_conditions))
+                if filters.or_:
+                    or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.or_.items()]
+                    conditions.append(or_(*or_conditions))
 
-            if 'or' in filters:
-                or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters['or'].items()]
-                conditions.append(or_(*or_conditions))
+                if filters.like_:
+                    like_conditions = [getattr(table_cls, attr).like(val) for attr, values in filters.like_.items() for val in values]
+                    conditions.append(or_(*like_conditions))
 
-            if 'like' in filters:
-                like_conditions = [getattr(table_cls, attr).like(val) for attr, values in filters['like'].items() for val in values]
-                conditions.append(or_(*like_conditions))
-
-            if 'not_like' in filters:
-                not_like_conditions = [getattr(table_cls, attr).notlike(val) for attr, values in filters['not_like'].items() for val in values]
-                conditions.append(and_(*not_like_conditions))
+                if filters.not_like_:
+                    not_like_conditions = [getattr(table_cls, attr).notlike(val) for attr, values in filters.not_like_.items() for val in values]
+                    conditions.append(and_(*not_like_conditions))
 
             statement = select(table_cls)
 
@@ -407,13 +396,21 @@ class DBManager():
                         if messages and messages.logger:
                             self.logger.info(messages.logger)
 
-                        return content, STATUS_MAP[200], messages.client if messages else 'Operation was successful.'
+                        return DBOutput(
+                            data=content
+                            , status=STATUS_MAP[200]
+                            , message=messages.client if messages else 'Operation was successful.'
+                        )
                     except tuple(ERROR_MAP.keys()) as e:
                         self.session.rollback()
 
                         error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
                         self.logger.error(f"{error.logger_message} \nMethod: <{func.__name__}>\t\tMessage:\n\n {e}.\n")
 
-                        return [], error.status_code, error.client_message
+                        return DBOutput(
+                            data=[]
+                            , status=error.status_code
+                            , message=error.client_message
+                        )
                 return wrapper
             return decorator

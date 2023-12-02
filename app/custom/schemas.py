@@ -1,12 +1,15 @@
-from app.core.schemas import DeleteData
-
 from pydantic import BaseModel
 
+class CSTDeleteData(BaseModel):
+    field: str
+    values: list[str | int]
 
-class RecipeDeleteInput(BaseModel):
-    recipe: DeleteData
-    composition: DeleteData
 
-class RecipeDeleteOutput(BaseModel):
+class CSTSubmitRecipeInput(BaseModel):
+    recipe: CSTDeleteData
+    composition: CSTDeleteData
+
+
+class CSTDeleteRecipeInput(BaseModel):
     recipes: str
     recipe_ingredients: str
