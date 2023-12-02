@@ -32,6 +32,7 @@ QUERY_MAP = {
 
 def to_json(content):
     if isinstance(content, pd.DataFrame):
+
         return content.to_json(orient='records')
     else:
         return json.dumps(content)

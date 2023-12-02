@@ -6,9 +6,8 @@ from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
 from sqlalchemy.sql.selectable import Select
 
-from app.core.models import datetime_factory
-
 from collections import namedtuple
+from datetime import datetime
 from typing import List, Any
 from logging import Logger
 
@@ -182,7 +181,7 @@ class DBManager():
         return self._map_dataframe(pd.DataFrame(rows_as_dicts), mapping_cls)
    
 
-    def _single(self, df: pd.DataFrame):
+    def _single(self, table_cls, df: pd.DataFrame):
         """
         Returns the first record from a DataFrame as a dictionary.
 
@@ -192,8 +191,11 @@ class DBManager():
         Returns:
             - The record as a dictionary.
         """
-        json_data = df.to_json(orient='records')
-        return json.loads(json_data)[0]
+        dct = df.to_dict(orient='records')[0]
+        json_data = json.dumps(dct)
+        tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), list(dct.keys()) + ['as_json'])
+        
+        return tuple_cls(**dct, as_json=json_data)
     
 
     def query(self, table_cls, statement: Select = None, filters: dict = None, order_by: List[str] = None, single: bool = None):
@@ -251,8 +253,11 @@ class DBManager():
 
         df = pd.read_sql(statement, self.engine)
 
+        if 'created_at' in df.columns: df['created_at'] = df['created_at'].astype(str)
+        if 'updated_at' in df.columns: df['updated_at'] = df['updated_at'].astype(str)
+
         if single:
-            return self._single(df)
+            return self._single(table_cls, df)
 
         return df
 
@@ -270,14 +275,13 @@ class DBManager():
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
             - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-        
         statement = insert(table_cls).values(data_list).returning(table_cls)
 
         returnings = self.session.execute(statement)
         df = self._parse_returnings(returnings, mapping_cls=table_cls)
 
         if single:
-            return self._single(df)
+            return self._single(table_cls, df)
 
         return df
 
@@ -301,10 +305,8 @@ class DBManager():
 
         results = []
         for data in data_list:
-            if data.get('created_at'):
+            if data.get('created_at') == '': # reason: ensure that the created_at column is not updated
                 data.pop('created_at')
-
-            data['updated_at'] = datetime_factory()
 
             conditions = [getattr(table_cls, pk) == data[pk] for pk in pk_columns]
             statement = update(table_cls).where(*conditions).values(data).returning(table_cls)
@@ -315,7 +317,7 @@ class DBManager():
         df = self._parse_returnings(results, mapping_cls=table_cls)
 
         if single:
-            return self._single(df)
+            return self._single(table_cls, df)
 
         return df
 
@@ -340,7 +342,7 @@ class DBManager():
         df = self._parse_returnings(returnings, mapping_cls=table_cls)
 
         if single:
-            return self._single(df)
+            return self._single(table_cls, df)
 
         return df
 
@@ -357,15 +359,14 @@ class DBManager():
             - A `pd.DataFrame` containing the inserted data.
             - If `single` is `True`, a `namedtuple` representing the first inserted record.
         """
-       
         results = []
 
         for data in data_list:
-            if data.get('created_at'):
+
+            if data.get('created_at') == '': # reason: see comment in TimestampModel in models.py
                 data.pop('created_at')
-
-            data['updated_at'] = datetime_factory()
-
+            data['updated_at'] = datetime.utcnow()
+            
             statement = postgres_upsert(table_cls).values(data)\
                         .on_conflict_do_update(index_elements=[table_cls.id], set_=data)\
                         .returning(table_cls)
@@ -376,7 +377,7 @@ class DBManager():
         df = self._parse_returnings(results, mapping_cls=table_cls)
 
         if single:
-            return self._single(df)
+            return self._single(table_cls, df)
         
         return df
 
@@ -411,7 +412,7 @@ class DBManager():
                         self.session.rollback()
 
                         error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                        self.logger.error(f"{error.logger_message} Message:\n\n {e}.\n")
+                        self.logger.error(f"{error.logger_message} \nMethod: <{func.__name__}>\t\tMessage:\n\n {e}.\n")
 
                         return [], error.status_code, error.client_message
                 return wrapper
