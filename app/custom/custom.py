@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Response, Body
+from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse, Response
 
+from app.core.methods import api_output
 from app.core.models import  Recipes, RecipeIngredients
-from app.core.orm import SuccessMessages
 from app.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
-from app.core.schemas import APIOutput
-from app.custom.schemas import CSTSubmitRecipeInput, CSTDeleteRecipeInput, CSTDeleteData
+from app.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages
+from app.custom.schemas import CSTSubmitRecipeInput, CSTDeleteRecipeInput
 from setup import db
 
 
@@ -40,7 +40,8 @@ async def crud__maps(response: Response) -> JSONResponse:
 
 
 @customRoutes_router.post("/custom/submit_recipe")
-async def submit_recipe(response: Response, data: dict = Body(...)) -> JSONResponse:
+@api_output
+async def submit_recipe(input: CSTSubmitRecipeInput) -> APIOutput:
     """
     Submit a recipe to the database.
 
@@ -55,23 +56,14 @@ async def submit_recipe(response: Response, data: dict = Body(...)) -> JSONRespo
         </ul>
     """
 
-    form_data: dict = data.get('form_data')
+    form_data = input.form_data
+    upsert_rows = input.insert_rows + input.update_rows
+    delete_rows = input.delete_rows
 
-
-    if not form_data:
-        db.logger.error(f"Could not find form data in request body.")
-        message = "Could not find form data in request body."
-        return JSONResponse(status_code=400, content={'message': message}, headers=response.headers)
-
-    if form_data.get('id', '') == '': # reason: if not found or empty
-        form_data.pop('id')
-
-    insert_rows = data.get('insert_rows', []) + data.get('update_rows', [])
-    delete_rows = data.get('delete_rows', [])
-
+    form_data.pop('id', None)
 
     @db.catching(messages=SuccessMessages('Recipe submitted successfully.'))
-    def touch__submit_recipe(form_data, insert_rows, delete_rows):
+    def touch_database(form_data, insert_rows, delete_rows) -> DBOutput:
 
         form_object = db.upsert(Recipes, [form_data], single=True)  
         db.upsert(RecipeIngredients, [{**row, 'id_recipe': form_object.id, 'updated_at': None} for row in insert_rows])
@@ -83,22 +75,19 @@ async def submit_recipe(response: Response, data: dict = Body(...)) -> JSONRespo
         recipe_ingredients_loaded_df = db.query(None, LOADED_QUERY(form_object.id))
         recipe_ingredients_snapshot_df = db.query(None, SNAPSHOT_QUERY(form_object.id))
 
-        json_data = {
-            'form_data': form_object.as_json,
-            'recipe_data': recipes_df.to_json(orient='records'),
-            'recipe_ingredient_loaded_data': recipe_ingredients_loaded_df.to_json(orient='records'),
-            'recipe_ingredient_snapshot_data': recipe_ingredients_snapshot_df.to_json(orient='records'),
+        return {
+            'form_data': form_object,
+            'recipe_data': recipes_df,
+            'recipe_ingredient_loaded_data': recipe_ingredients_loaded_df,
+            'recipe_ingredient_snapshot_data': recipe_ingredients_snapshot_df,
         }
-
-        return json_data
     
-    json_data, status_code, message = touch__submit_recipe(form_data, insert_rows, delete_rows)
-
-    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': message}, headers=response.headers)
+    return touch_database(form_data, upsert_rows, delete_rows)
 
 
 @customRoutes_router.delete("/custom/delete_recipe")
-async def delete_recipe(data: CSTSubmitRecipeInput) -> APIOutput:
+@api_output
+async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     """
     Delete a recipe from the database. The body should be as follows:
     <pre>
@@ -121,24 +110,18 @@ async def delete_recipe(data: CSTSubmitRecipeInput) -> APIOutput:
     """
 
     @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
-    def touch__delete_recipe(recipe: CSTDeleteData, composition: CSTDeleteData):
+    def touch_database(recipe: DeleteFilters, composition: DeleteFilters) -> DBOutput:
         
-        db.delete(RecipeIngredients, {composition.field: composition.ids})
-        db.delete(Recipes, {recipe.field: recipe.ids})
+        db.delete(RecipeIngredients, {composition.field: composition.values})
+        db.delete(Recipes, {recipe.field: recipe.values})
         db.session.commit()
 
-        recipes = db.query(Recipes).to_json(orient='records')
-        recipe_ingredients = db.query(None, EMPTY_QUERY).to_json(orient='records')
+        recipes = db.query(Recipes)
+        recipe_ingredients = db.query(None, EMPTY_QUERY)
 
-        content = CSTDeleteRecipeInput(
-            recipes = recipes
-            , recipe_ingredients = recipe_ingredients
-        )
+        return {
+            'recipes': recipes,
+            'recipe_ingredients': recipe_ingredients
+        }
 
-        return APIOutput(
-            data = content
-            , status = 200
-            , message = 'Recipe deleted successfully.'
-        )
-
-    return touch__delete_recipe(data.recipe, data.composition)
+    return touch_database(input.recipe, input.composition)

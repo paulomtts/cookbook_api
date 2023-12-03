@@ -2,11 +2,12 @@ from fastapi import status
 from sqlalchemy import create_engine, inspect, select, insert, delete, update, and_, or_
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.dialects.postgresql import insert as postgres_upsert
-from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, ProgrammingError
+from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.selectable import Select
 
 from app.core.schemas import DBOutput, QueryFilters
+from app.core.schemas import SuccessMessages
 
 from collections import namedtuple
 from datetime import datetime
@@ -17,9 +18,7 @@ import pandas as pd
 import json
 
 
-SuccessMessages = namedtuple('SuccessMessages', ['client', 'logger'], defaults=['Operation was successful.', None])
 ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
-
 
 STATUS_MAP = {
     200: status.HTTP_200_OK
@@ -70,6 +69,12 @@ ERROR_MAP = {
         STATUS_MAP[400]
         , "Index error."
         , "Expected returning data but none was found."
+    )
+
+    , KeyError: ErrorObject(
+        STATUS_MAP[400]
+        , "Key error."
+        , "The provided data is missing one or more required keys."
     )
 
     , Exception: ErrorObject(
@@ -183,10 +188,9 @@ class DBManager():
             - The record as a dictionary.
         """
         dct = df.to_dict(orient='records')[0]
-        json_data = json.dumps(dct)
-        tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), list(dct.keys()) + ['as_json'])
+        tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), list(dct.keys()))
         
-        return tuple_cls(**dct, as_json=json_data)
+        return tuple_cls(**dct)
     
 
     def query(self, table_cls, statement: Select = None, filters: QueryFilters = None, order_by: List[str] = None, single: bool = None):
@@ -373,19 +377,18 @@ class DBManager():
 
     def catching(self, messages: SuccessMessages = None):
             """
-            Decorator that catches specific exceptions and handles them gracefully. Note: does not commit.
+            Decorator that catches specific exceptions and handles them gracefully.
 
             How to declare:
                 - Place decorator above function like so:\n
-                >>> @instace.catching()
+                >>> @instace.catching(messages=SuccessMessages('Everything went fine!'))
                     def fn():
             
             Args:
-                - session: The database session.
-                - logger: The logger.
+                - messages (SuccessMessages, optional): The messages to be displayed in case of success. Defaults to None.
 
             Returns:
-                - callable: The decorated function.
+                - A `DBOutput` object containing the data, status code and message.
             """
             def decorator(func):
                 def wrapper(*args, **kwargs):

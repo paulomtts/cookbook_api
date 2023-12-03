@@ -1,15 +1,15 @@
 from pydantic import BaseModel
-
-class CSTDeleteData(BaseModel):
-    field: str
-    values: list[str | int]
+from app.core.schemas import DeleteFilters
 
 
 class CSTSubmitRecipeInput(BaseModel):
-    recipe: CSTDeleteData
-    composition: CSTDeleteData
+    form_data: dict
+    insert_rows: list[dict]
+    update_rows: list[dict]
+    delete_rows: list[dict]
 
 
 class CSTDeleteRecipeInput(BaseModel):
-    recipes: str
-    recipe_ingredients: str
+    recipe: DeleteFilters
+    composition: DeleteFilters
+

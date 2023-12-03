@@ -1,9 +1,11 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Response
+from fastapi.responses import JSONResponse
 
 from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.core.schemas import APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput
-from app.core.orm import SuccessMessages
+from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput
+from app.core.schemas import SuccessMessages
+from app.core.methods import api_output
 from setup import db
 
 from collections import namedtuple
@@ -28,6 +30,7 @@ QUERY_MAP = {
 
 
 @crud_router.post("/crud/insert")
+@api_output
 async def crud__insert(input: CRUDInsertInput) -> APIOutput:
     """
     Inserts data into the specified table.
@@ -51,15 +54,13 @@ async def crud__insert(input: CRUDInsertInput) -> APIOutput:
     )
 
     @db.catching(messages=messages)
-    def submit(table_cls, data):
-        return db.insert(table_cls, [data])
+    def submit(table_cls, data) -> DBOutput:
+        return db.insert(table_cls, data)
     
-    content, status_code, message = submit(table_cls, input.data)
-
-    return APIOutput(data=content, status=status_code, message=message)
-
+    return submit(table_cls, input.data)
 
 @crud_router.post("/crud/select")
+@api_output
 async def crud__select(input: CRUDSelectInput) -> APIOutput:
     """
     Selects data from a specified table in the database based on the provided filters.
@@ -108,8 +109,7 @@ async def crud__select(input: CRUDSelectInput) -> APIOutput:
 
     query = QUERY_MAP.get(input.table_name, ComplexQuery(None, None))
     statement = query.statement if not callable(query.statement)\
-                                else query.statement(input.lambda_args.kwargs if input.lambda_args else {}) 
-
+                                else query.statement(**input.lambda_kwargs if input.lambda_kwargs else {}) 
     messages = SuccessMessages(
         client=f"{input.table_name.capitalize()[:-1]} retrieved." if table_cls else f"{query.name.capitalize()} retrieved."
         , logger=f"Querying <{input.table_name}> was succesful! Filters: {input.filters}"
@@ -119,12 +119,11 @@ async def crud__select(input: CRUDSelectInput) -> APIOutput:
     def read(table_cls, statement, filters):
         return db.query(table_cls=table_cls, statement=statement, filters=filters)
 
-    json_data, status_code, message = read(table_cls, statement, input.filters)
-
-    return APIOutput(data=json_data, status=status_code, message=message)
+    return read(table_cls, statement, input.filters)
 
 
 @crud_router.put("/crud/update")
+@api_output
 async def crud__update(input: CRUDUpdateInput) -> APIOutput:
     """
     Update a record in the specified table.
@@ -151,12 +150,11 @@ async def crud__update(input: CRUDUpdateInput) -> APIOutput:
     def update_data(table_cls, data):
         return db.update(table_cls, [data])
 
-    content, status_code, message = update_data(table_cls, input.data)
-
-    return APIOutput(data=content, status=status_code, message=message)
+    return update_data(table_cls, input.data)
 
 
 @crud_router.delete("/crud/delete")
+@api_output
 async def crud__delete(input: CRUDDeleteInput) -> APIOutput:
     """
     Delete records from a specified table based on the provided filters. Filters example:
@@ -191,6 +189,4 @@ async def crud__delete(input: CRUDDeleteInput) -> APIOutput:
     def delete_data(table_cls, filters):
         return db.delete(table_cls, filters)
     
-    content, status_code, message = delete_data(table_cls, filters)
-
-    return APIOutput(data=content, status=status_code, message=message)
+    return delete_data(table_cls, filters)

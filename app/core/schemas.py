@@ -10,10 +10,23 @@ class TableNames(BaseModel):
 
     @validator('table_name')
     def validate_table_name(cls, value):
-        if value not in ['units', 'categories', 'ingredients', 'recipes', 'recipe_ingredients', 'recipe_composition_empty', 'recipe_composition_loaded', 'recipe_composition_snapshot']:
-            raise ValueError(f"Invalid table name.")
+        try:
+            if value not in [
+            'units'
+            , 'categories'
+            , 'ingredients'
+            , 'recipes'
+            , 'recipe_ingredients'
+            , 'recipe_composition_empty'
+            , 'recipe_composition_loaded'
+            , 'recipe_composition_snapshot'
+        ]:
+                raise ValueError(f"Invalid table name.")
+        except ValueError as e:
+            print(e)
+            
         return value
-    
+
 class QueryFilters(BaseModel):
     or_: Optional[dict[str, List[str | int]]]
     and_: Optional[dict[str, List[str | int]]]
@@ -22,6 +35,32 @@ class QueryFilters(BaseModel):
 
 class QueryArgs(BaseModel):
     kwargs: Optional[dict[str, Any]]
+
+class DeleteFilters(BaseModel):
+    field: str
+    values: List[str | int]
+
+class SuccessMessages(BaseModel):
+    client: Optional[str] = 'Operation was successful.'
+    logger: Optional[str] = None
+
+    def __init__(self, client: str = None, logger: str = None):
+        super().__init__(client=client, logger=logger)
+
+
+class CRUDInsertInput(TableNames, BaseModel):
+    data: list
+
+class CRUDSelectInput(TableNames, BaseModel):
+    filters: Optional[QueryFilters]
+    lambda_kwargs: Optional[dict[str, Any]]
+
+class CRUDUpdateInput(TableNames, BaseModel):
+    data: dict
+
+class CRUDDeleteInput(TableNames, BaseModel):
+    field: str
+    ids: List[int | str]
 
 
 class DBOutput(BaseModel):
@@ -43,41 +82,38 @@ class DBOutput(BaseModel):
 
 class APIOutput(BaseModel):
     """
-    Outputs the data, status code, and message of the CRUD operation. All data is
-    converted to JSON strings.
+    Outputs the data and message of the CRUD operation. All data is converted to JSON strings.
     """
 
-    data: str 
-    status: int
+    data: str | dict[str, str]
     message: str
 
-    def __init__(self, data: List[dict] | pd.DataFrame, status: int, message: str):
+    def __init__(self, data: List[dict] | pd.DataFrame, message: str):
         data = self.to_json(data)
-        super().__init__(data=data, status=status, message=message)
+        super().__init__(data=data, message=message)
+
+    def __iter__(self):
+        yield self.data
+        yield self.message
 
     def to_json(self, data):
         """
         Converts the data content to JSON strings.
         """
-        if isinstance(data, pd.DataFrame):
+        if isinstance(data, pd.DataFrame): # CRUD non-specific
             return data.to_json(orient='records')
-        elif isinstance(data, list):
-            return json.dumps(data)
-        elif hasattr(data, '_asdict'):
-            return data.as_json
+        elif hasattr(data, '_asdict'): # Custom with single=true
+            return json.dumps(data._asdict())
+        elif isinstance(data, dict): # Custom dict
+            parsed_data = {}
+
+            for key, data in data.items():
+                if isinstance(data, pd.DataFrame):
+                    parsed_data[key] = data.to_json(orient='records')
+                elif hasattr(data, '_asdict'):
+                    parsed_data[key] = json.dumps(data._asdict())
+                else:
+                    parsed_data[key] = json.dumps(data)
+
+            return parsed_data
         return data
-
-
-class CRUDInsertInput(TableNames, BaseModel):
-    data: list
-
-class CRUDSelectInput(TableNames, BaseModel):
-    filters: Optional[QueryFilters]
-    lambda_args: Optional[QueryArgs]
-
-class CRUDUpdateInput(TableNames, BaseModel):
-    data: dict
-
-class CRUDDeleteInput(TableNames, BaseModel):
-    field: str
-    ids: List[int | str]
