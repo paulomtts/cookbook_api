@@ -32,6 +32,7 @@ logging.config.dictConfig({
 logger = logging.getLogger('root')
 logger.setLevel(logging.DEBUG)
 
+
 app = FastAPI()
 app.add_middleware( # necessary to allow requests from local services
     CORSMiddleware,
@@ -48,8 +49,8 @@ app.add_middleware( # necessary to allow requests from local services
     allow_credentials=True,
 )
 
-dotenv.load_dotenv()
 
+dotenv.load_dotenv()
 db_type = os.environ.get('DB_TYPE')
 db_user = os.environ.get('DB_USER')
 db_password = os.environ.get('DB_PASSWORD')
