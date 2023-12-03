@@ -6,6 +6,7 @@ This is the API for the Cookbook app! The goal is to be a simple demonstration o
 - Pandas usage allows for easy data manipulation
 - Allows for complex queries (see queries.py and its use in routes.py's /custom/submit_recipe)
 - Writing complex chained operations is a piece of 🍰
+- You don't need to worry about parsing to JSON while writing custom routes, APIOutput schema will do it for you
 
 To achieve this, simply write a callback like the one below:
 ```
