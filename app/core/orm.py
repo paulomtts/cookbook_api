@@ -408,7 +408,7 @@ class DBManager():
                         self.session.rollback()
 
                         error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                        self.logger.error(f"{error.logger_message} \nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
+                        self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
 
                         return DBOutput(
                             data=[]
