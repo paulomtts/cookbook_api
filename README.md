@@ -10,19 +10,24 @@ This is the API for the Cookbook app! The goal is to be a simple demonstration o
 
 To achieve this, simply write a callback like the one below:
 ```
-@db.catching(messages=SuccessMessages('Submission succesful.'))
-def submit_data(form_data, upsert_data):
-    form_object = db.upsert(Recipes, [form_data], single=True)
-    upserted_rows = db.upsert(RecipeIngredients, [{**row, 'id_recipe': form_object.id} for row in upsert_data])
+@customRoutes_router.get("/my_route/")
+@api_output
+async def my_route(input: YourSchema) -> APIOutput:
+    @db.catching(messages=SuccessMessages('Submission succesful.'))
+    def submit_data(form_data, upsert_data):
+        form_object = db.upsert(Recipes, [form_data], single=True)
+        upserted_df = db.upsert(RecipeIngredients, [{**row, 'id_recipe': form_object.id} for row in upsert_data])
 
-    return upserted_rows
+        return = {
+            'form_data': form_object
+            , 'upserted_rows': upserted_df
+        }
 
-content, status_code, client_message = submit_data(form_data, upsert_data)
+    return submit_data(form_data, upsert_data)
 ```
 
 This project is usable out of the box. Don't forget to setup your enviroment variables! 🚀
 
 ## Comming up
-- [ ] Google OAuth
-- [ ] Image files upload route
-- [ ] FastAPI schemas
+- Google OAuth
+- Image files upload route
