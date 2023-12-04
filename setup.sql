@@ -15,15 +15,6 @@ CREATE TABLE units (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE TABLE ingredients (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description VARCHAR(255),
-    type VARCHAR(45) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
-    updated_at TIMESTAMP DEFAULT NOW()
-);
-
 CREATE TABLE recipes (
     id SERIAL PRIMARY KEY,
     name VARCHAR(90) NOT NULL,
@@ -31,6 +22,15 @@ CREATE TABLE recipes (
     period VARCHAR(45),
     type VARCHAR(45),
     presentation VARCHAR(45),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE TABLE ingredients (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    description VARCHAR(255),
+    type VARCHAR(45) NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
