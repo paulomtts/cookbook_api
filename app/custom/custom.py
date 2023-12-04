@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse, Response
-from sqlalchemy.orm.exc import StaleDataError
 
-from app.core.methods import api_output
-from app.core.orm import UnchangedStateError
+from app.core.methods import api_output, check_stale_data
 from app.core.models import  Recipes, RecipeIngredients
 from app.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
+                            , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
 from app.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
-from app.custom.schemas import CSTSubmitRecipeInput, CSTDeleteRecipeInput
+from app.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
 from setup import db
 
 import pandas as pd
@@ -42,103 +41,90 @@ async def maps(response: Response) -> JSONResponse:
     return JSONResponse(status_code=status_code, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=response.headers)
 
 
-@customRoutes_router.post("/custom/submit_recipe")
-async def submit_recipe(input: CSTSubmitRecipeInput) -> APIOutput:
-    form_data = input.form_data
-
+@customRoutes_router.post("/custom/upsert_recipe")
+async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
+    """
+    Update a recipe in the database.
+    """   
+    form_data = {key: value for key, value in input.form_data.items() if value != ''}
     reference = input.reference
-    filters = QueryFilters(and_={'id_recipe': [form_data.get('id')]})
 
     keep_columns = [key for key in RecipeIngredients.__annotations__.keys()]
 
-    new_state = pd.DataFrame(input.recipe_ingredients_rows)
-    new_state = new_state.drop(['id'], axis=1)
-    new_state = new_state.rename(columns={'id_recipe_ingredient': 'id'})
-    new_state = new_state[keep_columns]
-
+    curr_recipe_ingredients = pd.DataFrame(input.recipe_ingredients_rows)
+    curr_recipe_ingredients = curr_recipe_ingredients.drop(['id'], axis=1)
+    curr_recipe_ingredients = curr_recipe_ingredients.rename(columns={'id_recipe_ingredient': 'id'})
+    curr_recipe_ingredients = curr_recipe_ingredients[keep_columns]
 
     @api_output
-    @db.catching(messages=SuccessMessages('Recipe submitted successfully.'))
-    def touch_database(form_data, reference: str, filters, new_state: pd.DataFrame) -> DBOutput:
-        
-        new_form_data = form_data.copy()
-        db.upsert(Recipes, [new_form_data], single=True)
+    @db.catching(messages=SuccessMessages('Recipe updated successfully.'))
+    def upsert_recipe_touch(form_data, reference: str, curr_recipe_ingredients: pd.DataFrame) -> DBOutput:
 
-        old_state = db.query(RecipeIngredients, None, filters)
-        is_greater = (old_state['updated_at'] > reference).any()
-        
-        if is_greater:
-            raise StaleDataError('This recipe has been updated by another user. Please refresh the page and try again.')
+        # check for stale form data
+        if form_data.get('id'):
+            stale_recipe_filters = QueryFilters(and_={'id': [form_data.get('id')]})
+            check_stale_data(Recipes, stale_recipe_filters, reference)
+
+        # upsert recipe
+        recipe_object = db.upsert(Recipes, [form_data.copy()], single=True)
+        curr_recipe_id = recipe_object.id
+
+
+        # check for stale recipe ingredients
+        if form_data.get('id'):
+            stale_recipe_ingredients_filters = QueryFilters(and_={'id_recipe': [form_data.get('id')]})
+            old_recipe_ingredients = check_stale_data(RecipeIngredients, stale_recipe_ingredients_filters, reference)
+        else:
+            old_recipe_ingredients = pd.DataFrame(columns=curr_recipe_ingredients.columns)
         
 
-        merged_df = old_state.merge(new_state, how='outer', indicator=True)
+        # check for recipe ingredients unchanged state
+        merged_df = old_recipe_ingredients.merge(curr_recipe_ingredients, how='outer', indicator=True)
+        merged_df['id_recipe'] = curr_recipe_id
         merged_df['id'] = merged_df['id'].astype('Int64')
-        
-        if merged_df['_merge'].eq('both').all():
-            raise UnchangedStateError('No changes were made to the recipe ingredients.')
-        
+       
 
+        # update recipe ingredients
         insert_df = merged_df.query('_merge == "right_only"')\
-                             .drop(['id', 'created_at', 'updated_at', '_merge'], axis=1)
+                             .drop(['id', 'created_at', 'updated_at', '_merge'], axis=1, errors='ignore')
         update_df = merged_df.query('_merge == "both"')\
-                             .drop(['updated_at', '_merge'], axis=1)
+                            .drop(['updated_at', '_merge'], axis=1, errors='ignore')
         delete_df = merged_df.query('_merge == "left_only"')\
-                             .drop('_merge', axis=1)
-
-        delete_filters = QueryFilters(and_={'id': delete_df['id'].tolist()})
-
+                            .drop('_merge', axis=1, errors='ignore')
+        
         if not insert_df.empty: db.insert(RecipeIngredients, insert_df.to_dict('records'))
         if not update_df.empty: db.update(RecipeIngredients, update_df.to_dict('records'))
-        if not delete_df.empty: db.delete(RecipeIngredients, delete_filters)
+        if not delete_df.empty: db.delete(RecipeIngredients, DeleteFilters(field='id', values=delete_df['id'].tolist()))
 
         db.session.commit()
 
         return {
-            'form_data': form_data,
-            'recipe_data': db.query(Recipes),
-            'recipe_ingredient_loaded_data': db.query(None, LOADED_QUERY(form_data.get('id'))),
+            'form_data': recipe_object,
+            'recipes_data': db.query(Recipes),
+            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(curr_recipe_id)),
+            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(curr_recipe_id)),
         }
-
-    return touch_database(form_data, reference, filters, new_state)
+    
+    return upsert_recipe_touch(form_data, reference, curr_recipe_ingredients)
 
 
 @customRoutes_router.delete("/custom/delete_recipe")
 async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     """
-    Delete a recipe from the database. The body should be as follows:
-    <pre>
-    <code>
-    {
-        "id": [1]
-    }
-    </code>
-    </pre>
-
-    <h3>Args:</h3>
-        <ul>
-        <li>data (dict): The request data containing the id of the form to be deleted.</li>
-        </ul>
-
-    <h3>Returns:</h3>
-        <ul>
-        <li>JSONResponse: The JSON response containing the updated recipes and recipe ingredients table, and a message.</li>
-        </ul>
+    Delete a recipe from the database.
     """
 
     @api_output
     @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
-    def touch_database(recipe: DeleteFilters, composition: DeleteFilters) -> DBOutput:
-        
-        db.delete(RecipeIngredients, {composition.field: composition.values})
-        db.delete(Recipes, {recipe.field: recipe.values})
+    def delete_recipe_touch(recipe_filters: DeleteFilters, composition_filters: DeleteFilters) -> DBOutput:
+
+        db.delete(RecipeIngredients, composition_filters)
+        db.delete(Recipes, recipe_filters)
         db.session.commit()
 
-        recipes = db.query(Recipes)
-        recipe_ingredients = db.query(None, EMPTY_QUERY)
-
         return {
-            'recipes': recipes,
-            'recipe_ingredients': recipe_ingredients
+            'recipes_data': db.query(Recipes),
+            'recipe_ingredients_data': db.query(None, EMPTY_QUERY),
         }
 
-    return touch_database(input.recipe, input.composition)
+    return delete_recipe_touch(input.recipe, input.composition)

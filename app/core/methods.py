@@ -1,7 +1,10 @@
 from fastapi.responses import JSONResponse
 from fastapi import Response
+from sqlalchemy.orm.exc import StaleDataError
 
-from app.core.schemas import APIOutput
+from app.core.schemas import APIOutput, QueryFilters
+from app.core.orm import UnchangedStateError
+from setup import db
 
 from functools import wraps
 import pandas as pd
@@ -24,6 +27,19 @@ def api_output(func):
 
         return JSONResponse(status_code=status, content={'data': ouput.data, 'message': ouput.message})
     return wrapper
+
+# Verifications
+def check_stale_data(table_cls, filters: QueryFilters, reference: str) -> pd.DataFrame:
+    """
+    Check if the data is stale.
+    """
+    curr_data = db.query(table_cls, None, filters)
+
+    is_greater = (curr_data['updated_at'] > reference).any()
+    if is_greater:
+        raise StaleDataError("This data has been updated by another user. Please refresh the page and try again.")
+
+    return curr_data   
 
 
 # Dataframe state comparison

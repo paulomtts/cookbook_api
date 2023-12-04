@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List
 
 
-class CSTSubmitRecipeInput(BaseModel):
+class CSTUpsertRecipe(BaseModel):
     reference: str
     form_data: dict[str, str]
     recipe_ingredients_rows: List[dict]
