@@ -82,7 +82,7 @@ class DBOutput(BaseModel):
 
 class APIOutput(BaseModel):
     """
-    Outputs the data and message of the CRUD operation. All data is converted to JSON strings.
+    Outputs the data and message of the operation. All data is converted to JSON strings.
     """
 
     data: str | dict[str, str]
