@@ -6,8 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.selectable import Select
 
-from app.core.schemas import DBOutput, QueryFilters
-from app.core.schemas import SuccessMessages
+from app.core.schemas import DBOutput, QueryFilters, SuccessMessages
 
 from collections import namedtuple
 from datetime import datetime
@@ -15,7 +14,6 @@ from typing import List, Any
 from logging import Logger
 
 import pandas as pd
-import json
 
 
 ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logger_message'])
@@ -23,10 +21,14 @@ ErrorObject = namedtuple('ErrorObject', ['status_code', 'client_message', 'logge
 STATUS_MAP = {
     200: status.HTTP_200_OK
     , 204: status.HTTP_204_NO_CONTENT
+    , 304: status.HTTP_304_NOT_MODIFIED
     , 400: status.HTTP_400_BAD_REQUEST
     , 500: status.HTTP_500_INTERNAL_SERVER_ERROR
     , 503: status.HTTP_503_SERVICE_UNAVAILABLE
 }
+
+class UnchangedStateError(BaseException):
+    pass
 
 ERROR_MAP = {
     IntegrityError: ErrorObject(
@@ -75,6 +77,12 @@ ERROR_MAP = {
         STATUS_MAP[400]
         , "Key error."
         , "The provided data is missing one or more required keys."
+    )
+
+    , UnchangedStateError: ErrorObject(
+        STATUS_MAP[304]
+        , "Unchanged state."
+        , "No changes were made to the data."
     )
 
     , Exception: ErrorObject(
@@ -293,6 +301,8 @@ class DBManager():
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
             - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
+        data_list = data_list.copy()
+
         inspector = inspect(table_cls)
         pk_columns = [column.name for column in inspector.primary_key]  
 
@@ -315,7 +325,7 @@ class DBManager():
         return df
 
 
-    def delete(self, table_cls, filters: dict, single: bool = False):
+    def delete(self, table_cls, filters: QueryFilters, single: bool = False):
         """
         Delete records from the specified table based on the given filters.
 
@@ -328,7 +338,8 @@ class DBManager():
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the deleted records.
             - If `single` is `True`, a `namedtuple` representing the first deleted record.
         """
-        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
+        # conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
+        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.and_.items()]
         statement = delete(table_cls).where(*conditions).returning(table_cls)
 
         returnings = self.session.execute(statement)
@@ -352,8 +363,9 @@ class DBManager():
             - A `pd.DataFrame` containing the inserted data.
             - If `single` is `True`, a `namedtuple` representing the first inserted record.
         """
-        results = []
+        data_list = data_list.copy()
 
+        results = []
         for data in data_list:
 
             if data.get('created_at') == '': # reason: see comment in TimestampModel in models.py

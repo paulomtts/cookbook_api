@@ -1,12 +1,13 @@
-from pydantic import BaseModel
 from app.core.schemas import DeleteFilters
+
+from pydantic import BaseModel
+from typing import List
 
 
 class CSTSubmitRecipeInput(BaseModel):
-    form_data: dict
-    insert_rows: list[dict]
-    update_rows: list[dict]
-    delete_rows: list[dict]
+    reference: str
+    form_data: dict[str, str]
+    recipe_ingredients_rows: List[dict]
 
 
 class CSTDeleteRecipeInput(BaseModel):

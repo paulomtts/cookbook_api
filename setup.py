@@ -39,10 +39,6 @@ app.add_middleware( # necessary to allow requests from local services
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
     allow_origins=[
-        'http://localhost:3000',
-        'https://lmind-dashboard.azurewebsites.net',
-        'http://localhost:8001',
-        'https://lmindwsm.azurewebsites.net',
         'http://localhost:5173/',
         'http://localhost:5173',
     ],

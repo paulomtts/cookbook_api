@@ -30,8 +30,7 @@ QUERY_MAP = {
 
 
 @crud_router.post("/crud/insert")
-@api_output
-async def crud__insert(input: CRUDInsertInput) -> APIOutput:
+async def crud_insert(input: CRUDInsertInput) -> APIOutput:
     """
     Inserts data into the specified table.
 
@@ -53,15 +52,16 @@ async def crud__insert(input: CRUDInsertInput) -> APIOutput:
         , logger=f"Insert in <{input.table_name.capitalize()}> was successful. Data: {input.data}"
     )
 
+    @api_output
     @db.catching(messages=messages)
-    def submit(table_cls, data) -> DBOutput:
+    def touch_database(table_cls, data) -> DBOutput:
         return db.insert(table_cls, data)
     
-    return submit(table_cls, input.data)
+    return touch_database(table_cls, input.data)
+
 
 @crud_router.post("/crud/select")
-@api_output
-async def crud__select(input: CRUDSelectInput) -> APIOutput:
+async def crud_select(input: CRUDSelectInput) -> APIOutput:
     """
     Selects data from a specified table in the database based on the provided filters.
 
@@ -115,16 +115,16 @@ async def crud__select(input: CRUDSelectInput) -> APIOutput:
         , logger=f"Querying <{input.table_name}> was succesful! Filters: {input.filters}"
     )
 
+    @api_output
     @db.catching(messages=messages)
-    def read(table_cls, statement, filters):
+    def touch_database(table_cls, statement, filters):
         return db.query(table_cls=table_cls, statement=statement, filters=filters)
 
-    return read(table_cls, statement, input.filters)
+    return touch_database(table_cls, statement, input.filters)
 
 
 @crud_router.put("/crud/update")
-@api_output
-async def crud__update(input: CRUDUpdateInput) -> APIOutput:
+async def crud_update(input: CRUDUpdateInput) -> APIOutput:
     """
     Update a record in the specified table.
 
@@ -146,16 +146,16 @@ async def crud__update(input: CRUDUpdateInput) -> APIOutput:
         , logger=f"Update in {input.table_name.capitalize()} was successful. Data: {input.data}"
     )
 
+    @api_output
     @db.catching(messages=messages)
-    def update_data(table_cls, data):
+    def touch_database(table_cls, data):
         return db.update(table_cls, [data])
 
-    return update_data(table_cls, input.data)
+    return touch_database(table_cls, input.data)
 
 
 @crud_router.delete("/crud/delete")
-@api_output
-async def crud__delete(input: CRUDDeleteInput) -> APIOutput:
+async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
     """
     Delete records from a specified table based on the provided filters. Filters example:
     <pre>
@@ -185,8 +185,9 @@ async def crud__delete(input: CRUDDeleteInput) -> APIOutput:
         , logger=f"Delete in {input.table_name.capitalize()} was successful. Filters: {filters}"
     )
 
+    @api_output
     @db.catching(messages=messages)
-    def delete_data(table_cls, filters):
+    def touch_database(table_cls, filters):
         return db.delete(table_cls, filters)
     
-    return delete_data(table_cls, filters)
+    return touch_database(table_cls, filters)

@@ -1,4 +1,5 @@
 from fastapi.responses import JSONResponse
+from fastapi import Response
 
 from app.core.schemas import APIOutput
 
@@ -14,9 +15,12 @@ def api_output(func):
     """
 
     @wraps(func)
-    async def wrapper(*args, **kwargs):
-        data, status, message = await func(*args, **kwargs)
+    def wrapper(*args, **kwargs):
+        data, status, message = func(*args, **kwargs)
         ouput = APIOutput(data=data, message=message)
+
+        if status in [204, 304]:
+            return Response(status_code=status, headers={'message': ouput.message})
 
         return JSONResponse(status_code=status, content={'data': ouput.data, 'message': ouput.message})
     return wrapper
