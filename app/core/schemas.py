@@ -6,7 +6,14 @@ import pandas as pd
 import json
 
 class TableNames(BaseModel):
-    table_name: Literal['units'] | Literal['categories'] | Literal['ingredients'] | Literal['recipes'] | Literal['recipe_ingredients'] | Literal['recipe_composition_empty'] | Literal['recipe_composition_loaded'] | Literal['recipe_composition_snapshot']
+    table_name: Literal['units'] \
+              | Literal['categories'] \
+              | Literal['ingredients'] \
+              | Literal['recipes'] \
+              | Literal['recipe_ingredients'] \
+              | Literal['recipe_composition_empty'] \
+              | Literal['recipe_composition_loaded'] \
+              | Literal['recipe_composition_snapshot']
 
     @validator('table_name')
     def validate_table_name(cls, value):

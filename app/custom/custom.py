@@ -67,7 +67,6 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
 
         # upsert recipe
         recipe_object = db.upsert(Recipes, [form_data.copy()], single=True)
-        curr_recipe_id = recipe_object.id
 
 
         # check for stale recipe ingredients
@@ -80,7 +79,7 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
 
         # check for recipe ingredients unchanged state
         merged_df = old_recipe_ingredients.merge(curr_recipe_ingredients, how='outer', indicator=True)
-        merged_df['id_recipe'] = curr_recipe_id
+        merged_df['id_recipe'] = recipe_object.id
         merged_df['id'] = merged_df['id'].astype('Int64')
        
 
@@ -101,8 +100,8 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
         return {
             'form_data': recipe_object,
             'recipes_data': db.query(Recipes),
-            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(curr_recipe_id)),
-            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(curr_recipe_id)),
+            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(recipe_object.id)),
+            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id)),
         }
     
     return upsert_recipe_touch(form_data, reference, curr_recipe_ingredients)

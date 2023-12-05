@@ -3,7 +3,6 @@ from fastapi import Response
 from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.schemas import APIOutput, QueryFilters
-from app.core.orm import UnchangedStateError
 from setup import db
 
 from functools import wraps

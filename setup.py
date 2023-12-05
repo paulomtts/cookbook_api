@@ -39,8 +39,9 @@ app.add_middleware( # necessary to allow requests from local services
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
     allow_origins=[
-        'http://localhost:5173/',
-        'http://localhost:5173',
+        "https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=546852036472-m2b8gvcuqngij6lneigefiuhsqgr08pd.apps.googleusercontent.com&redirect_uri=http://localhost/callback&scope=openid%20profile%20email&access_type=offline"
+        # 'http://localhost:5173/',
+        'http://localhost:8000/',
     ],
     allow_credentials=True,
 )
