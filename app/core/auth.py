@@ -104,17 +104,25 @@ def decrypt_rsa_ciphertext(ciphertext, private_key) -> str:
 
 
 # JWT
-def generate_jwt(payload, private_key, algorithm='RS256'):
+def generate_jwt(payload, private_key):
     """
     Generates a JWT token using the payload and the secret signature.
     """
-    return jwt.encode(payload, private_key, algorithm=algorithm)
+    return jwt.encode(payload, private_key, algorithm='RS256')
 
-def decode_jwt(token, public_key, algorithm='RS256'):
+def decode_jwt(token, public_key):
     """
     Decodes a JWT token using the secret signature.
     """
-    return jwt.decode(token, public_key, algorithms=[algorithm])
+    return jwt.decode(token, public_key, algorithms=['RS256'])
+
+
+# Session token
+def generate_session_token(length=128):
+    """
+    Generates a random key for general use.
+    """
+    return secrets.token_hex(length//2)
 
 
 # Routes
