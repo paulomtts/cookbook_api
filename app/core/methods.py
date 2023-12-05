@@ -57,6 +57,7 @@ def find_common(df1: pd.DataFrame, df2: pd.DataFrame, cols: list[str]) -> pd.Dat
     df1 = df1[cols]
     df2 = df2[cols]
     df = df1.merge(df2, on=cols, how='inner')
+
     return df
 
 
@@ -75,6 +76,7 @@ def find_missing(df1: pd.DataFrame, df2: pd.DataFrame, cols: list[str]) -> pd.Da
     df1 = df1[cols]
     df2 = df2[cols]
     df = df1.merge(df2, on=cols, how='outer', indicator=True).query('_merge == "left_only"').drop('_merge', axis=1)
+
     return df
 
 
@@ -93,4 +95,5 @@ def find_new(df1: pd.DataFrame, df2: pd.DataFrame, cols: list[str]) -> pd.DataFr
     df1 = df1[cols]
     df2 = df2[cols]
     df = df1.merge(df2, on=cols, how='outer', indicator=True).query('_merge == "right_only"').drop('_merge', axis=1)
+    
     return df

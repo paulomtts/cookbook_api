@@ -1,8 +1,10 @@
 CREATE TABLE users (
     id SERIAL PRIMARY KEY
+    , google_id BIGINT NOT NULL
+    , google_email VARCHAR(45) NOT NULL
+    , google_picture_url VARCHAR(255) NOT NULL
     , name VARCHAR(45) NOT NULL
-    , email VARCHAR(45) NOT NULL
-    , status VARCHAR(45) NOT NULL
+    , locale VARCHAR(8) NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
     , updated_at TIMESTAMP DEFAULT NOW()
 );
