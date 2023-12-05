@@ -4,7 +4,8 @@ from typing import Optional
 
 
 REGEX_WORDS = r'^[a-zA-Z\s]+$'
-# REGEX_INTEGERS = r'^[0-9]+$'
+EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+GOOGLE_TOKEN_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
 
 
 class TimestampModel(SQLModel):
@@ -12,6 +13,29 @@ class TimestampModel(SQLModel):
     updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow)
     # Note: sqalchemy's .on_conflict_do_update() does not trigger onupdate events 
     # see the post at https://github.com/sqlalchemy/sqlalchemy/discussions/5903#discussioncomment-327672
+
+
+#######################################################
+class UserstampModel(SQLModel):
+    created_by: int
+    updated_by: int
+
+class Users(TimestampModel, table=True):
+    __tablename__ = 'users'
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str = Field(regex=REGEX_WORDS)
+    email: str = Field(regex=EMAIL_REGEX)
+
+class Sessions(TimestampModel, table=True):
+    __tablename__ = 'sessions'
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    id_user: int
+    token: str = Field(regex=GOOGLE_TOKEN_REGEX)
+    status: str = Field(regex=REGEX_WORDS)
+#######################################################
+
 
 class Categories(TimestampModel, table=True):
     __tablename__ = 'categories'
