@@ -1,5 +1,5 @@
 # cookbook_api 🍔
-This is the API for the Cookbook app! The goal is to be a simple demonstration of SQLAlchemy, SQLModel & Pandas usage in building easy to read interactions with a database. Here are a few features:
+This is the API for the Cookbook app! The goal is to be a simple demonstration of FastAPI, SQLAlchemy, SQLModel & Pandas usage in building easy to read interactions with a database. Here are a few features:
 
 - Nested, bulk & returning operations
 - Object oriented chained operations
@@ -28,6 +28,8 @@ async def my_route(input: YourSchema) -> APIOutput:
 ```
 
 This project is usable out of the box, but don't forget to setup your enviroment variables! 🚀
+
+All the thanks to @tiangolo. FastAPI is a really amazing piece of software!
 
 ## Comming up
 - Google OAuth
