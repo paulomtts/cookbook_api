@@ -123,38 +123,6 @@ def decode_jwt(token, public_key, algorithm='RS256'):
     return jwt.decode(token, public_key, algorithms=[algorithm])
 
 
-# test jwt encryption
-payload = {
-    'user_id': '1234567890',
-    'exp': datetime.utcnow() + timedelta(days=1)
-}
-
-# load signature
-with open('./vault/signature.key', 'r') as signature_file:
-    secret_key = signature_file.read()
-
-# load public key
-with open('./vault/public_key.pem', 'rb') as public_key_file:
-    public_key = serialization.load_der_public_key(
-        public_key_file.read()
-    )
-
-# load private key
-with open('./vault/private_key.pem', 'rb') as private_key_file:
-    private_key = serialization.load_pem_private_key(
-        private_key_file.read(),
-        password=None
-    )
-
-
-# generate jwt
-jwt_token = generate_jwt(payload, private_key)
-decoded_jwt = decode_jwt(jwt_token, public_key)
-print(jwt_token)
-print(decoded_jwt)
-
-
-
 # Routes
 @auth_router.get("/auth/login")
 async def login():
