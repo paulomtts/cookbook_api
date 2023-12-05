@@ -104,12 +104,6 @@ def decrypt_rsa_ciphertext(ciphertext, private_key) -> str:
 
 
 # JWT
-def generate_hmac_signature(length=64):
-    """
-    Generates a random, hashed, secret key for usage in JWT signature.
-    """
-    return secrets.token_hex(length//2)
-
 def generate_jwt(payload, private_key, algorithm='RS256'):
     """
     Generates a JWT token using the payload and the secret signature.
