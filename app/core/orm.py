@@ -371,9 +371,13 @@ class DBManager():
             if data.get('created_at') == '': # reason: see comment in TimestampModel in models.py
                 data.pop('created_at')
             data['updated_at'] = datetime.utcnow()
+
+            inspector = inspect(table_cls)
+            pk_columns = [column.name for column in inspector.primary_key] 
+            pk_value_list = [getattr(table_cls, pk) for pk in pk_columns]
             
             statement = postgres_upsert(table_cls).values(data)\
-                        .on_conflict_do_update(index_elements=[table_cls.id], set_=data)\
+                        .on_conflict_do_update(index_elements=pk_value_list, set_=data)\
                         .returning(table_cls)
             
             returnings = self.session.execute(statement)
