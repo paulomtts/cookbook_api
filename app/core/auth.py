@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.core.models import Users, Sessions
-from app.core.schemas import SuccessMessages, DBOutput
+from app.core.schemas import SuccessMessages, DBOutput, QueryFilters
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
-from datetime import datetime, timedelta
+from typing import Annotated, Callable
 
 import requests
+import inspect
 import secrets
 import base64
 import json
@@ -65,7 +66,7 @@ def generate_rsa_key_pair():
     with open('./vault/jwt_private_key.pem', 'wb') as private_key_file:
         private_key_file.write(private_key_pem)
 
-def hash_plaintext(plaintext) -> str:
+def hash_plaintext(plaintext) -> bytes:
     """
     Hash plaintext using SHA256. Output is in hash.
 
@@ -131,22 +132,110 @@ def decode_jwt(token, public_key):
     return jwt.decode(token, public_key, algorithms=['RS256'])
 
 
-# Session token
+# Methods
 def generate_session_token(length=64):
     """
     Generates a random key for general use.
     """
     return secrets.token_hex(length//2)
 
+async def validate_session(response: Response, request: Request, session_cookie: Annotated[str | None, Cookie()]):
+    """
+    Validate the session cookie. If the cookie is valid, extend the expiration,
+    otherwise, delete the cookie.
+    """
+
+    ############ DEVELOPMENT ONLY ############
+    with open(f'{os.getcwd()}/app/core/vault/jwt_public_key.pem', 'rb') as public_key_file:
+        public_key = serialization.load_der_public_key(
+            public_key_file.read()
+            , backend=None
+        )
+    ############ DEVELOPMENT ONLY ############
+
+    try:
+        hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
+        hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
+
+        decoded_token: dict = decode_jwt(session_cookie, public_key)
+        client_ip = request.client.host
+
+        if hashed_user_agent != decoded_token.get("user_agent") or client_ip != decoded_token.get("client_ip"):
+            raise ValueError("Session data did not match preliminary client data.")
+
+
+        @db.catching(SuccessMessages(client="Session validated."))
+        def auth__validate_session(decoded_token: dict, user_agent: dict, client_ip: str):
+            session_data = {
+                'google_id': [decoded_token.get("google_id")]
+                , 'token': [decoded_token.get("token")]
+                , 'user_agent': [user_agent]
+                , 'client_ip': [client_ip]
+            }
+
+            filters = QueryFilters(and_=session_data)
+            session = db.query(Sessions, filters=filters, single=True)
+
+            if session:
+                return True
+            else:     
+                db.update(Sessions, [{**session._asdict(), 'status': 'expired'}])
+                return False
+
+        is_valid_session, status_code, client_message = auth__validate_session(decoded_token, hashed_user_agent, client_ip)
+
+        if is_valid_session == True:
+            response = JSONResponse(content={'message': client_message}, status_code=status_code)
+            return response
+
+    except:
+        response = JSONResponse(content={'message': 'Unauthorized access.'}, status_code=401)
+        response.delete_cookie(key="session_cookie")
+        return response
+
+def with_session(func: Callable) -> Callable:
+    """
+    Decorator for validating the session cookie. Place it above any route that
+    requires session validation.
+    """
+
+    async def wrapper(response: Response, request: Request) -> JSONResponse:
+        cookies = request.cookies
+
+        db.logger.debug("\033[93mAttempting to validate session... \033[0m")
+        result = await validate_session(response, request, session_cookie=cookies.get("session_cookie"))
+
+        if result.status_code == 200:
+            db.logger.debug("\033[92mSuccess!\033[0m")
+
+            expected_args = [param for param in inspect.signature(func).parameters]
+            available_args = locals()
+
+            kwargs = {param: available_args[param] for param in expected_args}
+
+            return await func(**kwargs)
+        else:
+            db.logger.debug("\033[91mFailed! Cookies removed.\033[0m")
+            return result
+    return wrapper
+
 
 # Routes
 @auth_router.get("/auth/login")
 async def login():
+    """
+    Build the Google OAuth2 login URL and redirect the user to it.
+    """
     return RedirectResponse(f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline")
 
 
 @auth_router.get("/auth/callback")
-async def validate(request: Request, code: str = Query(...)):
+async def build_session(request: Request, code: str = Query(...)):
+    """
+    Build a session for the user. This is the callback URL that Google will
+    redirect the user to after they have successfully authenticated.
+    """
+
     token_url = "https://accounts.google.com/o/oauth2/token"
     data = {
         "code": code,
@@ -165,7 +254,8 @@ async def validate(request: Request, code: str = Query(...)):
 
             # 1) collect information
             hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
-            user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
+            hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
+
             client_ip = request.client.host
             user_info: dict = user_info.json()
             session_token = generate_session_token()
@@ -183,28 +273,30 @@ async def validate(request: Request, code: str = Query(...)):
             session_data = {
                 'google_id': user_info.get("id")
                 , 'token': session_token
-                , 'user_agent': user_agent
+                , 'user_agent': hashed_user_agent
                 , 'client_ip': client_ip
-                , 'status': 'active'
             }
 
             # 3) build payload & generate JWT
             payload = {
-                "token": session_token
-                , "user_email": user_info.get("email")
-                , "local_user_id": user_info.get("id")
-                , "expiration": (datetime.utcnow() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+                "google_id": user_info.get("id")
+                , "token": session_token
+                , "user_agent": hashed_user_agent
+                , "client_ip": client_ip
             }
 
+            ############ DEVELOPMENT ONLY ############
             with open(f'{os.getcwd()}/app/core/vault/jwt_private_key.pem', 'rb') as private_key_file:
                 private_key = serialization.load_pem_private_key(
                     private_key_file.read(),
-                    password=None
+                    password=None,
+                    backend=None,
                 )
 
                 jwt_token = generate_jwt(payload, private_key)
+            ############ DEVELOPMENT ONLY ############
 
-            @db.catching(SuccessMessages(client="User was successfully created.", logger="User authenticated. Session initiated."))
+            @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
             def auth__initiate_session(user_data, session_data):
                 user = db.upsert(Users, [user_data], single=True)
                 if user:
@@ -216,17 +308,11 @@ async def validate(request: Request, code: str = Query(...)):
             
             if db_output.status == 200:
                 response = JSONResponse(content={'message': db_output.message}, status_code=db_output.status)
-                response.set_cookie(key="session_cookie", value=jwt_token, httponly=True, samesite=None) # during development
+                expiration_length = 60 * 60 * 24 * 7 # 7 days
+                response.set_cookie(key="session_cookie", value=jwt_token, httponly=True, samesite=None, expires=expiration_length)
                 return response
 
             raise HTTPException(status_code=db_output.status, detail=db_output.message)
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     raise HTTPException(status_code=401, detail="Bad request.")
 
-
-async def verify_session(access_token: str = Depends(oauth2_scheme)):
-    user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
-    if user_info.status_code == 200:
-        return user_info.json()
-    else:
-        raise HTTPException(status_code=401, detail="Invalid or expired session")

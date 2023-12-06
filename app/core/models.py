@@ -37,7 +37,6 @@ class Sessions(TimestampModel, table=True):
     token: str
     user_agent: str
     client_ip: str
-    status: str = Field(regex=REGEX_WORDS)
 
 class Categories(TimestampModel, table=True):
     __tablename__ = 'categories'
