@@ -4,6 +4,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.core.models import Users, Sessions
 from app.core.schemas import SuccessMessages, DBOutput, QueryFilters
+from app.core.orm import MissingSessionError
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
@@ -176,17 +177,19 @@ async def validate_session(response: Response, request: Request, session_cookie:
 
             if session:
                 return True
-            else:     
-                db.update(Sessions, [{**session._asdict(), 'status': 'expired'}])
+            else:
                 return False
 
         is_valid_session, _, _ = auth__validate_session(decoded_token, hashed_user_agent, client_ip)
-        return is_valid_session
+
+        if not is_valid_session:
+            db.logger.error("Session token belonged to us, but no session matched it's data. Was this token stolen?")
+            raise MissingSessionError("No session could be found matching the provided session token.")
 
     except:
-        response = JSONResponse(content={'message': 'Unauthorized access.'}, status_code=401)
         response.delete_cookie(key="session_cookie")
-        return response
+        headers = {"set-cookie": response.headers["set-cookie"]}
+        raise HTTPException(status_code=401, detail="Unauthorized access.", headers=headers)
 
 
 # Routes
@@ -289,3 +292,9 @@ async def build_session(request: Request, code: str = Query(...)):
 @auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
 async def azuretest():
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
+
+
+@auth_router.get('/auth/logout', dependencies=[Depends(validate_session)])
+async def logout(response: Response):
+    response.delete_cookie(key="session_cookie")
+    return JSONResponse(status_code=200, content={"message": "Session has been terminated."})

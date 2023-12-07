@@ -30,6 +30,9 @@ STATUS_MAP = {
 class UnchangedStateError(BaseException):
     pass
 
+class MissingSessionError(BaseException):
+    pass
+
 ERROR_MAP = {
     IntegrityError: ErrorObject(
         STATUS_MAP[400]
@@ -195,7 +198,13 @@ class DBManager():
         Returns:
             - The record as a dictionary.
         """
-        dct = df.to_dict(orient='records')[0]
+        dct = df.to_dict(orient='records')
+
+        if not dct:
+            return []
+        else:
+            dct = dct[0]
+
         tuple_cls = namedtuple(table_cls.__tablename__.capitalize(), list(dct.keys()))
         
         return tuple_cls(**dct)
