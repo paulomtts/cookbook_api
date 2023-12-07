@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 
 from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput
+from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, DeleteFilters
+
 from app.core.schemas import SuccessMessages
 from app.core.methods import api_output
 from app.core.auth import validate_session
@@ -55,10 +56,10 @@ async def crud_insert(input: CRUDInsertInput) -> APIOutput:
 
     @api_output
     @db.catching(messages=messages)
-    def touch_database(table_cls, data) -> DBOutput:
+    def crud__insert(table_cls, data) -> DBOutput:
         return db.insert(table_cls, data)
     
-    return touch_database(table_cls, input.data)
+    return crud__insert(table_cls, input.data)
 
 
 @crud_router.post("/crud/select", dependencies=[Depends(validate_session)])
@@ -118,10 +119,10 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
 
     @api_output
     @db.catching(messages=messages)
-    def touch_database(table_cls, statement, filters):
+    def crud__select(table_cls, statement, filters):
         return db.query(table_cls=table_cls, statement=statement, filters=filters)
 
-    return touch_database(table_cls, statement, input.filters)
+    return crud__select(table_cls, statement, input.filters)
 
 
 @crud_router.put("/crud/update", dependencies=[Depends(validate_session)])
@@ -149,10 +150,10 @@ async def crud_update(input: CRUDUpdateInput) -> APIOutput:
 
     @api_output
     @db.catching(messages=messages)
-    def touch_database(table_cls, data):
+    def crud__update(table_cls, data):
         return db.update(table_cls, [data])
 
-    return touch_database(table_cls, input.data)
+    return crud__update(table_cls, input.data)
 
 
 @crud_router.delete("/crud/delete", dependencies=[Depends(validate_session)])
@@ -179,8 +180,8 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
         </ul>
     """
     table_cls = TABLE_MAP.get(input.table_name)
-
     filters = {input.field: input.ids}
+
     messages = SuccessMessages(
         client=f"{input.table_name.capitalize()} deleted."
         , logger=f"Delete in {input.table_name.capitalize()} was successful. Filters: {filters}"
@@ -188,7 +189,7 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
 
     @api_output
     @db.catching(messages=messages)
-    def touch_database(table_cls, filters):
+    def crud__delete(table_cls, filters):
         return db.delete(table_cls, filters)
     
-    return touch_database(table_cls, filters)
+    return crud__delete(table_cls, filters)

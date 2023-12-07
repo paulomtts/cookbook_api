@@ -45,7 +45,7 @@ class QueryArgs(BaseModel):
 
 class DeleteFilters(BaseModel):
     field: str
-    values: List[str | int]
+    ids: List[str | int]
 
 class SuccessMessages(BaseModel):
     client: Optional[str] = 'Operation was successful.'

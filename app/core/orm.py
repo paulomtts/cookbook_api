@@ -331,7 +331,7 @@ class DBManager():
         return df
 
 
-    def delete(self, table_cls, filters: DeleteFilters, single: bool = False):
+    def delete(self, table_cls, filters: dict, single: bool = False):
         """
         Delete records from the specified table based on the given filters.
 
@@ -344,8 +344,8 @@ class DBManager():
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the deleted records.
             - If `single` is `True`, a `namedtuple` representing the first deleted record.
         """
-        modified_filters = {filters.field: filters.values}
-        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in modified_filters.items()]
+
+        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
         statement = delete(table_cls).where(*conditions).returning(table_cls)
 
         returnings = self.session.execute(statement)
@@ -414,7 +414,7 @@ class DBManager():
         """
         def decorator(func):
             def wrapper(*args, **kwargs):
-                try:
+                # try:
                     content = func(*args, **kwargs)
                     self.session.commit()
 
@@ -426,16 +426,16 @@ class DBManager():
                         , status=STATUS_MAP[200]
                         , message=messages.client if messages else 'Operation was successful.'
                     )
-                except tuple(ERROR_MAP.keys()) as e:
-                    self.session.rollback()
+                # except tuple(ERROR_MAP.keys()) as e:
+                #     self.session.rollback()
 
-                    error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                    self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
+                #     error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
+                #     self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
 
-                    return DBOutput(
-                        data=[]
-                        , status=error.status_code
-                        , message=error.client_message
-                    )
+                #     return DBOutput(
+                #         data=[]
+                #         , status=error.status_code
+                #         , message=error.client_message
+                #     )
             return wrapper
         return decorator
