@@ -1,13 +1,15 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
 from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput
 from app.core.schemas import SuccessMessages
 from app.core.methods import api_output
+from app.core.auth import validate_session
 from setup import db
 
 from collections import namedtuple
+
 
 crud_router = APIRouter()
 
@@ -28,7 +30,7 @@ QUERY_MAP = {
 }
 
 
-@crud_router.post("/crud/insert")
+@crud_router.post("/crud/insert", dependencies=[Depends(validate_session)])
 async def crud_insert(input: CRUDInsertInput) -> APIOutput:
     """
     Inserts data into the specified table.
@@ -59,7 +61,7 @@ async def crud_insert(input: CRUDInsertInput) -> APIOutput:
     return touch_database(table_cls, input.data)
 
 
-@crud_router.post("/crud/select")
+@crud_router.post("/crud/select", dependencies=[Depends(validate_session)])
 async def crud_select(input: CRUDSelectInput) -> APIOutput:
     """
     Selects data from a specified table in the database based on the provided filters.
@@ -122,7 +124,7 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
     return touch_database(table_cls, statement, input.filters)
 
 
-@crud_router.put("/crud/update")
+@crud_router.put("/crud/update", dependencies=[Depends(validate_session)])
 async def crud_update(input: CRUDUpdateInput) -> APIOutput:
     """
     Update a record in the specified table.
@@ -153,7 +155,7 @@ async def crud_update(input: CRUDUpdateInput) -> APIOutput:
     return touch_database(table_cls, input.data)
 
 
-@crud_router.delete("/crud/delete")
+@crud_router.delete("/crud/delete", dependencies=[Depends(validate_session)])
 async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
     """
     Delete records from a specified table based on the provided filters. Filters example:

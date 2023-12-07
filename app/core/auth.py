@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query
+from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query, Depends
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse, JSONResponse
 
@@ -7,10 +7,9 @@ from app.core.schemas import SuccessMessages, DBOutput, QueryFilters
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
-from typing import Annotated, Callable
+from typing import Annotated
 
 import requests
-import inspect
 import secrets
 import base64
 import json
@@ -36,9 +35,8 @@ GOOGLE_INFO_URL = os.environ.get('GOOGLE_INFO_URL')
 # session JWT.
 
 # The server can decode the session JWT and verify the payload. If the
-# payload is valid, the server can then issue a new session JWT to the
-# client. The client can then store the new session JWT and use it for
-# future requests.
+# payload is valid, the server can then verify the user's identity and
+# allow the user to access the protected route.
 
 
 # RSA & hashing
@@ -182,42 +180,13 @@ async def validate_session(response: Response, request: Request, session_cookie:
                 db.update(Sessions, [{**session._asdict(), 'status': 'expired'}])
                 return False
 
-        is_valid_session, status_code, client_message = auth__validate_session(decoded_token, hashed_user_agent, client_ip)
-
-        if is_valid_session == True:
-            response = JSONResponse(content={'message': client_message}, status_code=status_code)
-            return response
+        is_valid_session, _, _ = auth__validate_session(decoded_token, hashed_user_agent, client_ip)
+        return is_valid_session
 
     except:
         response = JSONResponse(content={'message': 'Unauthorized access.'}, status_code=401)
         response.delete_cookie(key="session_cookie")
         return response
-
-def with_session(func: Callable) -> Callable:
-    """
-    Decorator for validating the session cookie. Place it above any route that
-    requires session validation.
-    """
-
-    async def wrapper(response: Response, request: Request) -> JSONResponse:
-        cookies = request.cookies
-
-        db.logger.debug("\033[93mAttempting to validate session... \033[0m")
-        result = await validate_session(response, request, session_cookie=cookies.get("session_cookie"))
-
-        if result.status_code == 200:
-            db.logger.debug("\033[92mSuccess!\033[0m")
-
-            expected_args = [param for param in inspect.signature(func).parameters]
-            available_args = locals()
-
-            kwargs = {param: available_args[param] for param in expected_args}
-
-            return await func(**kwargs)
-        else:
-            db.logger.debug("\033[91mFailed! Cookies removed.\033[0m")
-            return result
-    return wrapper
 
 
 # Routes
@@ -226,7 +195,8 @@ async def login():
     """
     Build the Google OAuth2 login URL and redirect the user to it.
     """
-    return RedirectResponse(f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline")
+    # return RedirectResponse(f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline")
+    return JSONResponse(content={'url': f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline"}, status_code=200)
 
 
 @auth_router.get("/auth/callback")
@@ -307,12 +277,15 @@ async def build_session(request: Request, code: str = Query(...)):
             db_output: DBOutput = auth__initiate_session(user_data, session_data)
             
             if db_output.status == 200:
-                response = JSONResponse(content={'message': db_output.message}, status_code=db_output.status)
-                expiration_length = 60 * 60 * 24 * 7 # 7 days
-                response.set_cookie(key="session_cookie", value=jwt_token, httponly=True, samesite=None, expires=expiration_length)
+                response = RedirectResponse(url="http://localhost:5173")
+                response.set_cookie(key="session_cookie", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
                 return response
 
             raise HTTPException(status_code=db_output.status, detail=db_output.message)
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     raise HTTPException(status_code=401, detail="Bad request.")
 
+
+@auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
+async def azuretest():
+    return JSONResponse(status_code=200, content={"message": "Session is valid."})

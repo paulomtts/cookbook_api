@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Response
-from fastapi.responses import JSONResponse, Response
+from fastapi import APIRouter, Request, Depends
+from fastapi.responses import JSONResponse
 
 from app.core.methods import api_output, check_stale_data
 from app.core.models import  Recipes, RecipeIngredients
@@ -8,6 +8,7 @@ from app.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
 from app.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
 from app.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
+from app.core.auth import validate_session
 from setup import db
 
 import pandas as pd
@@ -17,7 +18,7 @@ customRoutes_router = APIRouter()
 
 
 @customRoutes_router.get("/custom/maps")
-async def maps(response: Response) -> JSONResponse:
+async def maps(request: Request):
     """
     Obtain the maps.json file.
 
@@ -28,20 +29,18 @@ async def maps(response: Response) -> JSONResponse:
     """
 
     try:
-        status_code = 200
-        with open('maps.json', 'r') as f:
+        with open('app\custom\maps.json', 'r') as f:
             json_data = f.read()
 
         db.logger.info(f"Successfully loaded maps.json file.")
     except Exception as e:
         db.logger.error(f"Could not load maps.json file. Error: {e}")
         json_data = {}
-        status_code = 400
 
-    return JSONResponse(status_code=status_code, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=response.headers)
+    return JSONResponse(status_code=200, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=request.headers)
 
 
-@customRoutes_router.post("/custom/upsert_recipe")
+@customRoutes_router.post("/custom/upsert_recipe", dependencies=[Depends(validate_session)])
 async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
     """
     Update a recipe in the database.
@@ -107,7 +106,7 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
     return upsert_recipe_touch(form_data, reference, curr_recipe_ingredients)
 
 
-@customRoutes_router.delete("/custom/delete_recipe")
+@customRoutes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
 async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     """
     Delete a recipe from the database.
