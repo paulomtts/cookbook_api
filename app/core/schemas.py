@@ -45,7 +45,7 @@ class QueryArgs(BaseModel):
 
 class DeleteFilters(BaseModel):
     field: str
-    ids: List[str | int]
+    values: List[str | int]
 
 class SuccessMessages(BaseModel):
     client: Optional[str] = 'Operation was successful.'
@@ -66,8 +66,7 @@ class CRUDUpdateInput(TableNames, BaseModel):
     data: dict
 
 class CRUDDeleteInput(TableNames, BaseModel):
-    field: str
-    ids: List[int | str]
+    filters: List[DeleteFilters]
 
 
 class DBOutput(BaseModel):

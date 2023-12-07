@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, SuccessMessages
+from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, SuccessMessages, DeleteFilters
 from app.core.methods import api_output, append_user_credentials
 from app.core.auth import validate_session
 from setup import db
@@ -182,11 +182,11 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
         </ul>
     """
     table_cls = TABLE_MAP.get(input.table_name)
-    filters = {input.field: input.ids}
+    # filter_objects = [ftr for ftr in input.filters]
 
     messages = SuccessMessages(
         client=f"{input.table_name.capitalize()} deleted."
-        , logger=f"Delete in {input.table_name.capitalize()} was successful. Filters: {filters}"
+        , logger=f"Delete in {input.table_name.capitalize()} was successful. Filters: {input.filters}"
     )
 
     @api_output
@@ -194,4 +194,4 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
     def crud__delete(table_cls, filters):
         return db.delete(table_cls, filters)
     
-    return crud__delete(table_cls, filters)
+    return crud__delete(table_cls, input.filters)

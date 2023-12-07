@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.selectable import Select
 
-from app.core.schemas import DBOutput, QueryFilters, SuccessMessages
+from app.core.schemas import DBOutput, QueryFilters, SuccessMessages, DeleteFilters
 
 from collections import namedtuple
 from datetime import datetime
@@ -331,7 +331,7 @@ class DBManager():
         return df
 
 
-    def delete(self, table_cls, filters: dict, single: bool = False):
+    def delete(self, table_cls, filters: DeleteFilters | List[DeleteFilters], single: bool = False):
         """
         Delete records from the specified table based on the given filters.
 
@@ -345,7 +345,10 @@ class DBManager():
             - If `single` is `True`, a `namedtuple` representing the first deleted record.
         """
 
-        conditions = [getattr(table_cls, column_name).in_(values) for column_name, values in filters.items()]
+        if isinstance(filters, DeleteFilters):
+            filters = [filters]
+
+        conditions = [getattr(table_cls, ftr.field).in_(ftr.values) for ftr in filters]
         statement = delete(table_cls).where(*conditions).returning(table_cls)
 
         returnings = self.session.execute(statement)

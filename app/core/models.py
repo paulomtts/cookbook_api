@@ -79,5 +79,5 @@ class RecipeIngredients(TimestampModel, UserModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     id_recipe: int = Field(foreign_key='recipes.id')
     id_ingredient: int = Field(foreign_key='ingredients.id')
-    quantity: float
+    quantity: int
     id_unit: int = Field(foreign_key='units.id')

@@ -78,15 +78,12 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
             old_recipe_ingredients = check_stale_data(RecipeIngredients, stale_recipe_ingredients_filters, timestamp)
         else:
             old_recipe_ingredients = pd.DataFrame(columns=curr_recipe_ingredients.columns)
-        
 
-        # check for recipe ingredients unchanged state
+
         merged_df = old_recipe_ingredients.merge(curr_recipe_ingredients, how='outer', indicator=True)
         merged_df['id_recipe'] = recipe_object.id
         merged_df['id'] = merged_df['id'].astype('Int64')      
 
-
-        # update recipe ingredients
         insert_df = merged_df.query('_merge == "right_only"')\
                              .drop(['id', 'created_at', 'updated_at', '_merge'], axis=1, errors='ignore')
         update_df = merged_df.query('_merge == "both"')\
@@ -98,11 +95,6 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
         # append user credentials
         append_user_credentials(insert_df, user_id)
         append_user_credentials(update_df, user_id)
-
-        print(insert_df)
-        print()
-        print(update_df)
-
 
         # perform operations
         if not insert_df.empty: db.insert(RecipeIngredients, insert_df.to_dict('records'))
