@@ -300,7 +300,7 @@ async def auth_validate():
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
-@auth_router.get('/auth/logout', dependencies=[Depends(validate_session)])
+@auth_router.get('/auth/logout')
 async def auth_logout(response: Response):
     response.delete_cookie(key="session_cookie")
-    return JSONResponse(status_code=200, content={"message": "Session has been terminated."})
+    return JSONResponse(status_code=200, content={"message": "Session has been terminated."}, headers=response.headers)
