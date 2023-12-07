@@ -7,6 +7,7 @@ from setup import db
 
 from functools import wraps
 import pandas as pd
+from typing import List, Union
 
 
 # Decorators
@@ -26,6 +27,37 @@ def api_output(func):
 
         return JSONResponse(status_code=status, content={'data': ouput.data, 'message': ouput.message})
     return wrapper
+
+
+# CRUD
+def append_user_credentials(data: Union[List[dict], dict, pd.DataFrame], user_id: str) -> list[dict]:
+    """
+    Appends the user ID to the data.
+    """
+
+    if isinstance(data, list) and all(isinstance(row, dict) for row in data):
+        for row in data:
+            if not row.get('created_by'):
+                row['created_by'] = user_id
+
+            row['updated_by'] = user_id
+
+    elif isinstance(data, dict):
+        if not data.get('created_by'):
+            data['created_by'] = user_id
+
+        data['updated_by'] = user_id
+
+    elif isinstance(data, pd.DataFrame):
+        if 'created_by' in data.columns:
+            data['created_by'].fillna(user_id, inplace=True)
+        else:
+            data['created_by'] = user_id
+
+        data['updated_by'] = user_id
+
+    return data
+
 
 # Verifications
 def check_stale_data(table_cls, filters: QueryFilters, reference: str) -> pd.DataFrame:

@@ -2,10 +2,12 @@ from sqlmodel import Field, SQLModel
 from datetime import datetime
 from typing import Optional
 
-
+REGEX_SHA256 = r'^[a-fA-F0-9]{64}$'
+REGEX_NUMBERS = r'^[0-9]+$'
 REGEX_WORDS = r'^[a-zA-Z\s]+$'
-EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+REGEX_IP = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
 URL_REGEX = r'^https:\/\/[^\s\/$.?#].[^\s]*$'
+EMAIL_REGEX = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
 
 
 class TimestampModel(SQLModel):
@@ -15,14 +17,14 @@ class TimestampModel(SQLModel):
     # see the post at https://github.com/sqlalchemy/sqlalchemy/discussions/5903#discussioncomment-327672
 
 class UserModel(SQLModel):
-    created_by: int
-    updated_by: int
+    created_by: str = Field(regex=REGEX_NUMBERS)
+    updated_by: str = Field(regex=REGEX_NUMBERS)
     
 
 class Users(TimestampModel, table=True):
     __tablename__ = 'users'
 
-    google_id: Optional[str] = Field(default=None, primary_key=True)
+    google_id: Optional[str] = Field(default=None, regex=REGEX_NUMBERS, primary_key=True)
     google_email: str = Field(regex=EMAIL_REGEX)
     google_picture_url: str = Field(regex=URL_REGEX)
     google_access_token: str
@@ -33,19 +35,19 @@ class Sessions(TimestampModel, table=True):
     __tablename__ = 'sessions'
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    google_id: str = Field(foreign_key='users.google_id')
-    token: str
-    user_agent: str
-    client_ip: str
+    google_id: str = Field(foreign_key='users.google_id', regex=REGEX_NUMBERS)
+    token: str = Field(regex=REGEX_SHA256)
+    user_agent: str = Field(regex=REGEX_SHA256)
+    client_ip: str = Field(regex=REGEX_IP)
 
-class Categories(TimestampModel, table=True):
+class Categories(TimestampModel, UserModel, table=True):
     __tablename__ = 'categories'
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(regex=REGEX_WORDS)
     type: str = Field(regex=REGEX_WORDS)
 
-class Units(TimestampModel, table=True):
+class Units(TimestampModel, UserModel, table=True):
     __tablename__ = 'units'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -53,17 +55,17 @@ class Units(TimestampModel, table=True):
     abbreviation: str = Field(regex=REGEX_WORDS)
     base: int
 
-class Recipes(TimestampModel, table=True):
+class Recipes(TimestampModel, UserModel, table=True):
     __tablename__ = 'recipes'
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(regex=REGEX_WORDS)
     description: str = None
-    period: str = Field(regex=REGEX_WORDS)
+    timing: str = Field(regex=REGEX_WORDS)
     type: str = Field(regex=REGEX_WORDS)
-    presentation: str = Field(regex=REGEX_WORDS)
+    course: str = Field(regex=REGEX_WORDS)
 
-class Ingredients(TimestampModel, table=True):
+class Ingredients(TimestampModel, UserModel, table=True):
     __tablename__ = 'ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -71,7 +73,7 @@ class Ingredients(TimestampModel, table=True):
     description: str = None
     type: str = Field(regex=REGEX_WORDS)
 
-class RecipeIngredients(TimestampModel, table=True):
+class RecipeIngredients(TimestampModel, UserModel, table=True):
     __tablename__ = 'recipe_ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)

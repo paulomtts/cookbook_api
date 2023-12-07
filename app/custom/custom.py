@@ -8,6 +8,7 @@ from app.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
 from app.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
 from app.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
+from app.core.methods import append_user_credentials
 from app.core.auth import validate_session
 from setup import db
 
@@ -40,13 +41,15 @@ async def maps(request: Request):
     return JSONResponse(status_code=200, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=request.headers)
 
 
-@customRoutes_router.post("/custom/upsert_recipe", dependencies=[Depends(validate_session)])
-async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
+@customRoutes_router.post("/custom/upsert_recipe")
+async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Update a recipe in the database.
-    """   
+    """
     form_data = {key: value for key, value in input.form_data.items() if value != ''}
-    reference = input.reference
+    append_user_credentials(form_data, user_id)
+
+    timestamp = input.reference_time
 
     keep_columns = [key for key in RecipeIngredients.__annotations__.keys()]
 
@@ -57,12 +60,13 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
 
     @api_output
     @db.catching(messages=SuccessMessages('Recipe updated successfully.'))
-    def upsert_recipe_touch(form_data, reference: str, curr_recipe_ingredients: pd.DataFrame) -> DBOutput:
+    def _submit_recipe(form_data, timestamp: str, curr_recipe_ingredients: pd.DataFrame) -> DBOutput:
 
         # check for stale form data
         if form_data.get('id'):
-            stale_recipe_filters = QueryFilters(and_={'id': [form_data.get('id')]})
-            check_stale_data(Recipes, stale_recipe_filters, reference)
+            recipe_filters = QueryFilters(and_={'id': [form_data.get('id')]})
+            check_stale_data(Recipes, recipe_filters, timestamp)
+
 
         # upsert recipe
         recipe_object = db.upsert(Recipes, [form_data.copy()], single=True)
@@ -71,7 +75,7 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
         # check for stale recipe ingredients
         if form_data.get('id'):
             stale_recipe_ingredients_filters = QueryFilters(and_={'id_recipe': [form_data.get('id')]})
-            old_recipe_ingredients = check_stale_data(RecipeIngredients, stale_recipe_ingredients_filters, reference)
+            old_recipe_ingredients = check_stale_data(RecipeIngredients, stale_recipe_ingredients_filters, timestamp)
         else:
             old_recipe_ingredients = pd.DataFrame(columns=curr_recipe_ingredients.columns)
         
@@ -79,8 +83,8 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
         # check for recipe ingredients unchanged state
         merged_df = old_recipe_ingredients.merge(curr_recipe_ingredients, how='outer', indicator=True)
         merged_df['id_recipe'] = recipe_object.id
-        merged_df['id'] = merged_df['id'].astype('Int64')
-       
+        merged_df['id'] = merged_df['id'].astype('Int64')      
+
 
         # update recipe ingredients
         insert_df = merged_df.query('_merge == "right_only"')\
@@ -90,6 +94,17 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
         delete_df = merged_df.query('_merge == "left_only"')\
                             .drop('_merge', axis=1, errors='ignore')
         
+
+        # append user credentials
+        append_user_credentials(insert_df, user_id)
+        append_user_credentials(update_df, user_id)
+
+        print(insert_df)
+        print()
+        print(update_df)
+
+
+        # perform operations
         if not insert_df.empty: db.insert(RecipeIngredients, insert_df.to_dict('records'))
         if not update_df.empty: db.update(RecipeIngredients, update_df.to_dict('records'))
         if not delete_df.empty: db.delete(RecipeIngredients, DeleteFilters(field='id', values=delete_df['id'].tolist()))
@@ -103,7 +118,7 @@ async def update_recipe(input: CSTUpsertRecipe) -> APIOutput:
             'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id)),
         }
     
-    return upsert_recipe_touch(form_data, reference, curr_recipe_ingredients)
+    return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)
 
 
 @customRoutes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])

@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.selectable import Select
 
-from app.core.schemas import DBOutput, DeleteFilters, QueryFilters, SuccessMessages
+from app.core.schemas import DBOutput, QueryFilters, SuccessMessages
 
 from collections import namedtuple
 from datetime import datetime

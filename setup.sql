@@ -15,7 +15,6 @@ CREATE TABLE sessions (
     , token VARCHAR(255) NOT NULL
     , user_agent VARCHAR(255) NOT NULL
     , client_ip VARCHAR(45) NOT NULL
-    , status VARCHAR(45) NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
     , updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -25,9 +24,9 @@ CREATE TABLE categories (
     , name VARCHAR(45) NOT NULL
     , type VARCHAR(45) NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
-    , created_by INT NOT NULL
+    , created_by VARCHAR(64) NOT NULL
     , updated_at TIMESTAMP DEFAULT NOW()
-    , updated_by INT NOT NULL
+    , updated_by VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE units (
@@ -36,22 +35,22 @@ CREATE TABLE units (
     , abbreviation VARCHAR(5) NOT NULL
     , base INT NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
-    , created_by INT NOT NULL
+    , created_by VARCHAR(64) NOT NULL
     , updated_at TIMESTAMP DEFAULT NOW()
-    , updated_by INT NOT NULL
+    , updated_by VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE recipes (
     id SERIAL PRIMARY KEY
     , name VARCHAR(90) NOT NULL
     , description VARCHAR(255)
-    , period VARCHAR(45)
+    , timing VARCHAR(45)
     , type VARCHAR(45)
-    , presentation VARCHAR(45)
+    , course VARCHAR(45)
     , created_at TIMESTAMP DEFAULT NOW()
-    , created_by INT NOT NULL
+    , created_by VARCHAR(64) NOT NULL
     , updated_at TIMESTAMP DEFAULT NOW()
-    , updated_by INT NOT NULL
+    , updated_by VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE ingredients (
@@ -60,9 +59,9 @@ CREATE TABLE ingredients (
     , description VARCHAR(255)
     , type VARCHAR(45) NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
-    , created_by INT NOT NULL
+    , created_by VARCHAR(64) NOT NULL
     , updated_at TIMESTAMP DEFAULT NOW()
-    , updated_by INT NOT NULL
+    , updated_by VARCHAR(64) NOT NULL
 );
 
 CREATE TABLE recipe_ingredients (
@@ -72,9 +71,9 @@ CREATE TABLE recipe_ingredients (
     , quantity NUMERIC(10, 2) NOT NULL
     , id_unit INT REFERENCES units(id) NOT NULL
     , created_at TIMESTAMP DEFAULT NOW()
-    , created_by INT NOT NULL
+    , created_by VARCHAR(64) NOT NULL
     , updated_at TIMESTAMP DEFAULT NOW()
-    , updated_by INT NOT NULL
+    , updated_by VARCHAR(64) NOT NULL
 );
 
 -- CREATE TABLE recipe_ingredients_nodes (
@@ -86,9 +85,9 @@ CREATE TABLE recipe_ingredients (
 --     , node_level integer not null
 --     , node_json jsonb not null
 --     , created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
---     , created_by INT NOT NULL
+--     , created_by VARCHAR(64) NOT NULL
 --     , updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
---     , updated_by INT NOT NULL
+--     , updated_by VARCHAR(64) NOT NULL
 -- );
 
 -- CREATE TABLE recipe_ingredients_edges (
@@ -98,9 +97,9 @@ CREATE TABLE recipe_ingredients (
 --     , source_uid varchar(36) NOT NULL 
 --     , target_uid varchar(36) NOT NULL
 --     , created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
---     , created_by INT NOT NULL
+--     , created_by VARCHAR(64) NOT NULL
 --     , updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
---     , updated_by INT NOT NULL
+--     , updated_by VARCHAR(64) NOT NULL
 -- );
 
 -- CREATE TABLE recipe_files (

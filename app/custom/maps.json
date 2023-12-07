@@ -18,8 +18,8 @@
             , "recipes": [
                 "name"
                 , "type"
-                , "period"
-                , "presentation"
+                , "timing"
+                , "course"
                 , "description"
             ]
         }

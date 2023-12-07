@@ -5,7 +5,7 @@ from typing import List
 
 
 class CSTUpsertRecipe(BaseModel):
-    reference: str
+    reference_time: str
     form_data: dict[str, str]
     recipe_ingredients_rows: List[dict]
 

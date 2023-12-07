@@ -2,10 +2,8 @@ from fastapi import APIRouter, Depends
 
 from app.core.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
 from app.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
-from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, DeleteFilters
-
-from app.core.schemas import SuccessMessages
-from app.core.methods import api_output
+from app.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, SuccessMessages
+from app.core.methods import api_output, append_user_credentials
 from app.core.auth import validate_session
 from setup import db
 
@@ -31,8 +29,8 @@ QUERY_MAP = {
 }
 
 
-@crud_router.post("/crud/insert", dependencies=[Depends(validate_session)])
-async def crud_insert(input: CRUDInsertInput) -> APIOutput:
+@crud_router.post("/crud/insert")
+async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Inserts data into the specified table.
 
@@ -54,6 +52,8 @@ async def crud_insert(input: CRUDInsertInput) -> APIOutput:
         , logger=f"Insert in <{input.table_name.capitalize()}> was successful. Data: {input.data}"
     )
 
+    append_user_credentials(input.data, user_id)
+    
     @api_output
     @db.catching(messages=messages)
     def crud__insert(table_cls, data) -> DBOutput:
@@ -125,8 +125,8 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
     return crud__select(table_cls, statement, input.filters)
 
 
-@crud_router.put("/crud/update", dependencies=[Depends(validate_session)])
-async def crud_update(input: CRUDUpdateInput) -> APIOutput:
+@crud_router.put("/crud/update")
+async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Update a record in the specified table.
 
@@ -147,6 +147,8 @@ async def crud_update(input: CRUDUpdateInput) -> APIOutput:
         client=f"{input.table_name.capitalize()} updated."
         , logger=f"Update in {input.table_name.capitalize()} was successful. Data: {input.data}"
     )
+
+    append_user_credentials(input.data, user_id, created_by=False, updated_by=True)
 
     @api_output
     @db.catching(messages=messages)
