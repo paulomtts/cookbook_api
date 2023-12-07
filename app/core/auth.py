@@ -4,7 +4,6 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.core.models import Users, Sessions
 from app.core.schemas import SuccessMessages, DBOutput, QueryFilters
-from app.core.orm import MissingSessionError
 
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization, hashes
@@ -131,7 +130,7 @@ def decode_jwt(token, public_key):
     return jwt.decode(token, public_key, algorithms=['RS256'])
 
 
-# Methods
+# Methods & exceptions
 def generate_session_token(length=64):
     """
     Generates a random key for general use.
@@ -191,10 +190,17 @@ async def validate_session(response: Response, request: Request, session_cookie:
         headers = {"set-cookie": response.headers["set-cookie"]}
         raise HTTPException(status_code=401, detail="Unauthorized access.", headers=headers)
 
+class MissingSessionError(BaseException):
+    """
+    An exception raised when a session token could be decrypted 
+    but no session could be found matching its contents. This
+    could be an indication that the session token was stolen.
+    """
+
 
 # Routes
 @auth_router.get("/auth/login")
-async def login():
+async def auth_login():
     """
     Build the Google OAuth2 login URL and redirect the user to it.
     """
@@ -203,7 +209,7 @@ async def login():
 
 
 @auth_router.get("/auth/callback")
-async def build_session(request: Request, code: str = Query(...)):
+async def auth_callback(request: Request, code: str = Query(...)):
     """
     Build a session for the user. This is the callback URL that Google will
     redirect the user to after they have successfully authenticated.
@@ -290,11 +296,11 @@ async def build_session(request: Request, code: str = Query(...)):
 
 
 @auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
-async def azuretest():
+async def auth_validate():
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
 @auth_router.get('/auth/logout', dependencies=[Depends(validate_session)])
-async def logout(response: Response):
+async def auth_logout(response: Response):
     response.delete_cookie(key="session_cookie")
     return JSONResponse(status_code=200, content={"message": "Session has been terminated."})

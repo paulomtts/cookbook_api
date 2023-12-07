@@ -30,9 +30,6 @@ STATUS_MAP = {
 class UnchangedStateError(BaseException):
     pass
 
-class MissingSessionError(BaseException):
-    pass
-
 ERROR_MAP = {
     IntegrityError: ErrorObject(
         STATUS_MAP[400]
@@ -401,44 +398,44 @@ class DBManager():
 
 
     def catching(self, messages: SuccessMessages = None):
-            """
-            Decorator that catches specific exceptions and handles them gracefully.
+        """
+        Decorator that catches specific exceptions and handles them gracefully.
 
-            How to declare:
-                - Place decorator above function like so:\n
-                >>> @instace.catching(messages=SuccessMessages('Everything went fine!'))
-                    def fn():
-            
-            Args:
-                - messages (SuccessMessages, optional): The messages to be displayed in case of success. Defaults to None.
+        How to declare:
+            - Place decorator above function like so:\n
+            >>> @instace.catching(messages=SuccessMessages('Everything went fine!'))
+                def fn():
+        
+        Args:
+            - messages (SuccessMessages, optional): The messages to be displayed in case of success. Defaults to None.
 
-            Returns:
-                - A `DBOutput` object containing the data, status code and message.
-            """
-            def decorator(func):
-                def wrapper(*args, **kwargs):
-                    try:
-                        content = func(*args, **kwargs)
-                        self.session.commit()
+        Returns:
+            - A `DBOutput` object containing the data, status code and message.
+        """
+        def decorator(func):
+            def wrapper(*args, **kwargs):
+                try:
+                    content = func(*args, **kwargs)
+                    self.session.commit()
 
-                        if messages and messages.logger:
-                            self.logger.info(messages.logger)
+                    if messages and messages.logger:
+                        self.logger.info(messages.logger)
 
-                        return DBOutput(
-                            data=content
-                            , status=STATUS_MAP[200]
-                            , message=messages.client if messages else 'Operation was successful.'
-                        )
-                    except tuple(ERROR_MAP.keys()) as e:
-                        self.session.rollback()
+                    return DBOutput(
+                        data=content
+                        , status=STATUS_MAP[200]
+                        , message=messages.client if messages else 'Operation was successful.'
+                    )
+                except tuple(ERROR_MAP.keys()) as e:
+                    self.session.rollback()
 
-                        error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                        self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
+                    error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
+                    self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
 
-                        return DBOutput(
-                            data=[]
-                            , status=error.status_code
-                            , message=error.client_message
-                        )
-                return wrapper
-            return decorator
+                    return DBOutput(
+                        data=[]
+                        , status=error.status_code
+                        , message=error.client_message
+                    )
+            return wrapper
+        return decorator
