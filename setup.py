@@ -43,13 +43,21 @@ app.add_middleware( # necessary to allow requests from local services
 )
 
 
-dotenv.load_dotenv(f"{os.getcwd()}/.env")
-db_type = os.environ.get('DB_TYPE')
-db_user = os.environ.get('DB_USER')
-db_password = os.environ.get('DB_PASSWORD')
-db_host = os.environ.get('DB_HOST')
-db_port = os.environ.get('DB_PORT')
-db_name = os.environ.get('DB_NAME')
+# dotenv.load_dotenv(f"{os.getcwd()}/.env")
+# db_type = os.environ.get('DB_TYPE')
+# db_user = os.environ.get('DB_USER')
+# db_password = os.environ.get('DB_PASSWORD')
+# db_host = os.environ.get('DB_HOST')
+# db_port = os.environ.get('DB_PORT')
+# db_name = os.environ.get('DB_NAME')
+db_type = os.getenv('DB_TYPE')
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_host = os.getenv('DB_HOST')
+db_port = os.getenv('DB_PORT')
+db_name = os.getenv('DB_NAME')
+
+
 
 try:
     if all([db_type, db_user, db_password, db_host, db_port, db_name]):
@@ -58,3 +66,5 @@ try:
         raise Exception('Could not find all environment variables for database connection.')
 except Exception as e:
     logger.error(e)
+
+
