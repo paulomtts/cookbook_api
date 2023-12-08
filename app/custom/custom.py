@@ -13,6 +13,7 @@ from app.core.auth import validate_session
 from setup import db
 
 import pandas as pd
+import os
 
 
 customRoutes_router = APIRouter()
@@ -30,7 +31,8 @@ async def maps(request: Request):
     """
 
     try:
-        with open('app\custom\maps.json', 'r') as f:
+        cwd = os.getcwd()
+        with open(f"{cwd}/app/custom/maps.json", "r") as f:
             json_data = f.read()
 
         db.logger.info(f"Successfully loaded maps.json file.")
