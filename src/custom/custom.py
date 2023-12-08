@@ -1,15 +1,15 @@
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import JSONResponse
 
-from core.auth import validate_session
-from core.methods import api_output, check_stale_data, append_user_credentials
-from core.models import  Recipes, RecipeIngredients
-from core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
+from src.core.start import db
+from src.core.auth import validate_session
+from src.core.methods import api_output, check_stale_data, append_user_credentials
+from src.core.models import  Recipes, RecipeIngredients
+from src.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
+from src.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
-from core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
-from custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
-from core.start import db
+from src.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
 
 import pandas as pd
 import os
