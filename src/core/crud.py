@@ -10,7 +10,6 @@ from core.start import db
 from collections import namedtuple
 
 
-
 crud_router = APIRouter()
 
 
