@@ -1,6 +1,6 @@
 version: '3'
 services:
-  cbk-api-a0-0-4:
+  cookbook_api:
     build: .
     ports:
       - "8000:8000"
