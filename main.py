@@ -16,5 +16,5 @@ app.include_router(customRoutes_router)
 async def azuretest():
     return JSONResponse(status_code=200, content={"message": "healthy."})
 
-if __name__ == '__main__':
-    uvicorn.run('main:app', reload=True, reload_dirs=['app'], port=8000)
+# if __name__ == '__main__':
+#     uvicorn.run('main:app', reload=True, reload_dirs=['app'], port=8000)
