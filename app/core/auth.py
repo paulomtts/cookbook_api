@@ -1,10 +1,10 @@
 from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query, Depends
-from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import RedirectResponse, JSONResponse
 
 from app.core.models import Users, Sessions
 from app.core.schemas import SuccessMessages, DBOutput, QueryFilters
 from app.core.security import generate_session_token, hash_plaintext, generate_jwt, decode_jwt
+from setup import db
 
 from typing import Annotated
 
@@ -13,7 +13,6 @@ import base64
 import json
 import os
 
-from setup import db
 
 
 auth_router = APIRouter()
@@ -29,11 +28,9 @@ auth_router = APIRouter()
 # payload is valid, the server can then verify the user's identity and
 # allow the user to access the protected route.
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI')
-GOOGLE_INFO_URL = os.environ.get('GOOGLE_INFO_URL')
 
 class MissingSessionError(BaseException):
     """
@@ -98,7 +95,6 @@ async def auth_login():
     """
     Build the Google OAuth2 login URL and redirect the user to it.
     """
-    # return RedirectResponse(f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline")
     return JSONResponse(content={'url': f"https://accounts.google.com/o/oauth2/auth?response_type=code&client_id={GOOGLE_CLIENT_ID}&redirect_uri={GOOGLE_REDIRECT_URI}&scope=openid%20profile%20email&access_type=offline"}, status_code=200)
 
 

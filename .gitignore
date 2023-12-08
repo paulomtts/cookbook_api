@@ -1,6 +1,6 @@
 client_secret.json
 vault/
-.env_local
+.env_dev
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
