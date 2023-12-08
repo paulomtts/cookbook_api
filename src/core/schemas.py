@@ -1,6 +1,5 @@
-from fastapi import Cookie
 from pydantic import BaseModel, validator
-from typing import List, Any, Optional, Literal, Annotated
+from typing import List, Any, Optional, Literal
 
 import pandas as pd
 import json
