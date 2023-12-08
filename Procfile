@@ -1,1 +1,1 @@
-web: uvicorn src.main:app --workers 4
+web: gunicorn -b 0.0.0.0:$PORT src.main:app
