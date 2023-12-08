@@ -3,7 +3,7 @@ from fastapi import Response
 from sqlalchemy.orm.exc import StaleDataError
 
 from src.core.schemas import APIOutput, QueryFilters
-from src.main import db
+from src.core.start import db
 
 from typing import List, Union
 from functools import wraps

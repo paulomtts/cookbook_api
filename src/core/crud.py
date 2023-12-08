@@ -5,9 +5,10 @@ from src.core.models import Categories, Units, Recipes, Ingredients, RecipeIngre
 from src.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, SuccessMessages
 from src.core.methods import api_output, append_user_credentials
 from src.core.auth import validate_session
-from src.main import db
+from core.start import db
 
 from collections import namedtuple
+
 
 
 crud_router = APIRouter()
