@@ -1,5 +1,5 @@
 client_secret.json
-vault/
+# vault/
 dot.env
 deploy.txt
 
