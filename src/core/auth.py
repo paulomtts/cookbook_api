@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query, Depends
 from fastapi.responses import RedirectResponse, JSONResponse
 
-from src.core.models import Users, Sessions
-from src.core.schemas import SuccessMessages, DBOutput, QueryFilters
-from src.core.security import generate_session_token, hash_plaintext, generate_jwt, decode_jwt
+from core.models import Users, Sessions
+from core.schemas import SuccessMessages, DBOutput, QueryFilters
+from core.security import generate_session_token, hash_plaintext, generate_jwt, decode_jwt
 from core.start import db
 
 from typing import Annotated

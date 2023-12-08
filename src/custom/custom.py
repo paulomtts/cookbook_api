@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from src.core.start import db
 from src.core.auth import validate_session
 from src.core.methods import api_output, check_stale_data, append_user_credentials
-from src.core.models import  Recipes, RecipeIngredients
+from core.models import  Recipes, RecipeIngredients
 from src.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
 from src.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\

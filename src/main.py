@@ -4,13 +4,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import sys
 import os
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
+print(parent_dir)
 
-from src.core.crud import crud_router
-from src.core.auth import auth_router
-from src.custom.custom import customRoutes_router
+from core.crud import crud_router
+from core.auth import auth_router
+from custom.custom import customRoutes_router
 
 import uvicorn
 

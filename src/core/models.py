@@ -16,7 +16,7 @@ class TimestampModel(SQLModel):
     # Note: sqalchemy's .on_conflict_do_update() does not trigger onupdate events 
     # see the post at https://github.com/sqlalchemy/sqlalchemy/discussions/5903#discussioncomment-327672
 
-class UserModel(SQLModel):
+class UserFields(SQLModel):
     created_by: str = Field(regex=REGEX_NUMBERS)
     updated_by: str = Field(regex=REGEX_NUMBERS)
     
@@ -40,14 +40,14 @@ class Sessions(TimestampModel, table=True):
     user_agent: str = Field(regex=REGEX_SHA256)
     client_ip: str = Field(regex=REGEX_IP)
 
-class Categories(TimestampModel, UserModel, table=True):
+class Categories(TimestampModel, UserFields, table=True):
     __tablename__ = 'categories'
 
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str = Field(regex=REGEX_WORDS)
     type: str = Field(regex=REGEX_WORDS)
 
-class Units(TimestampModel, UserModel, table=True):
+class Units(TimestampModel, UserFields, table=True):
     __tablename__ = 'units'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -55,7 +55,7 @@ class Units(TimestampModel, UserModel, table=True):
     abbreviation: str = Field(regex=REGEX_WORDS)
     base: int
 
-class Recipes(TimestampModel, UserModel, table=True):
+class Recipes(TimestampModel, UserFields, table=True):
     __tablename__ = 'recipes'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -65,7 +65,7 @@ class Recipes(TimestampModel, UserModel, table=True):
     type: str = Field(regex=REGEX_WORDS)
     course: str = Field(regex=REGEX_WORDS)
 
-class Ingredients(TimestampModel, UserModel, table=True):
+class Ingredients(TimestampModel, UserFields, table=True):
     __tablename__ = 'ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -73,7 +73,7 @@ class Ingredients(TimestampModel, UserModel, table=True):
     description: str = None
     type: str = Field(regex=REGEX_WORDS)
 
-class RecipeIngredients(TimestampModel, UserModel, table=True):
+class RecipeIngredients(TimestampModel, UserFields, table=True):
     __tablename__ = 'recipe_ingredients'
 
     id: Optional[int] = Field(default=None, primary_key=True)
