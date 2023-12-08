@@ -9,8 +9,8 @@ parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
 from src.core.crud import crud_router
-from core.auth import auth_router
-from custom.custom import customRoutes_router
+from src.core.auth import auth_router
+from src.custom.custom import customRoutes_router
 
 import uvicorn
 
