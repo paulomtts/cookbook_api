@@ -1,4 +1,4 @@
-from app.core.schemas import DeleteFilters
+from core.schemas import DeleteFilters
 
 from pydantic import BaseModel
 from typing import List

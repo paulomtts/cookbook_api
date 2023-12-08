@@ -1,12 +1,16 @@
 from fastapi.responses import JSONResponse
 import uvicorn
+import sys
+import os
+sys.path.append(os.getcwd())
 
-from app.core import setup
-from app.core.crud import crud_router
-from app.core.auth import auth_router
-from app.custom.custom import customRoutes_router
 
-app = setup.app
+from core import start 
+from core.crud import crud_router
+from core.auth import auth_router
+from custom.custom import customRoutes_router
+
+app = start.app
 
 app.include_router(crud_router)
 app.include_router(auth_router)

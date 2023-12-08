@@ -2,8 +2,8 @@ from fastapi.responses import JSONResponse
 from fastapi import Response
 from sqlalchemy.orm.exc import StaleDataError
 
-from app.core.schemas import APIOutput, QueryFilters
-from setup import db
+from core.schemas import APIOutput, QueryFilters
+from core.start import db
 
 from typing import List, Union
 from functools import wraps
