@@ -1,6 +1,10 @@
 from fastapi.responses import JSONResponse
 
-from app.core.start import app 
+import sys
+import os
+sys.path.append(os.getcwd())
+
+from core.start import app 
 from core.crud import crud_router
 from core.auth import auth_router
 from custom.custom import customRoutes_router
