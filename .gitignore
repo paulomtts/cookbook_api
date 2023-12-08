@@ -1,6 +1,6 @@
 client_secret.json
 vault/
-.env_deploy
+dot.env
 deploy.txt
 
 # Byte-compiled / optimized / DLL files

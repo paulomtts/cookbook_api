@@ -14,7 +14,6 @@ import json
 import os
 
 
-
 auth_router = APIRouter()
 
 

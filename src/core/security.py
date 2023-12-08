@@ -6,6 +6,8 @@ import base64
 import jwt
 import os
 
+CURR_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # RSA & hashing
 def generate_rsa_key_pair():
     """
@@ -89,7 +91,7 @@ def generate_jwt(payload):
     Generates a JWT token using the payload and the secret signature.
     """
     ############ DEVELOPMENT ONLY ############
-    with open(f'{os.getcwd()}/app/core/vault/jwt_private_key.pem', 'rb') as private_key_file:
+    with open(f'{CURR_DIR}/vault/jwt_private_key.pem', 'rb') as private_key_file:
         private_key = serialization.load_pem_private_key(
             private_key_file.read(),
             password=None,
@@ -104,7 +106,7 @@ def decode_jwt(cookie):
     Decodes a JWT token using the secret signature.
     """
     ############ DEVELOPMENT ONLY ############
-    with open(f'{os.getcwd()}/app/core/vault/jwt_public_key.pem', 'rb') as public_key_file:
+    with open(f'{CURR_DIR}/vault/jwt_public_key.pem', 'rb') as public_key_file:
         public_key = serialization.load_der_public_key(
             public_key_file.read()
             , backend=None

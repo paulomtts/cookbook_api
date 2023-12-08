@@ -28,21 +28,7 @@ logging.config.dictConfig({
 logger = logging.getLogger('root')
 logger.setLevel(logging.DEBUG)
 
-# from boto.s3.connection import S3Connection
-# db_type = S3Connection(os.environ['DB_TYPE'], os.environ['DB_TYPE'])
-# db_user = S3Connection(os.environ['DB_USER'], os.environ['DB_USER'])
-# db_password = S3Connection(os.environ['DB_PASSWORD'], os.environ['DB_PASSWORD'])
-# db_host = S3Connection(os.environ['DB_HOST'], os.environ['DB_HOST'])
-# db_port = S3Connection(os.environ['DB_PORT'], os.environ['DB_PORT'])
-# db_name = S3Connection(os.environ['DB_NAME'], os.environ['DB_NAME'])
-
-# dotenv.load_dotenv()
-# db_type = os.environ.get('DB_TYPE')
-# db_user = os.environ.get('DB_USER')
-# db_password = os.environ.get('DB_PASSWORD')
-# db_host = os.environ.get('DB_HOST')
-# db_port = os.environ.get('DB_PORT')
-# db_name = os.environ.get('DB_NAME')
+dotenv.load_dotenv()
 db_type = os.getenv('DB_TYPE')
 db_user = os.getenv('DB_USER')
 db_password = os.getenv('DB_PASSWORD')
