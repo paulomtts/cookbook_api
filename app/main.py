@@ -1,13 +1,12 @@
 from fastapi.responses import JSONResponse
 
-from core import start 
+from app.core.start import app 
 from core.crud import crud_router
 from core.auth import auth_router
 from custom.custom import customRoutes_router
 
 import uvicorn
 
-app = start.app
 
 app.include_router(crud_router)
 app.include_router(auth_router)
