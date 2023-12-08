@@ -51,7 +51,7 @@ app.add_middleware( # necessary to allow requests from local services
 # db_port = S3Connection(os.environ['DB_PORT'], os.environ['DB_PORT'])
 # db_name = S3Connection(os.environ['DB_NAME'], os.environ['DB_NAME'])
 
-# dotenv.load_dotenv(f"{os.getcwd()}/../.env")
+dotenv.load_dotenv(f"{os.getcwd()}/../.env")
 db_type = os.environ.get('DB_TYPE')
 db_user = os.environ.get('DB_USER')
 db_password = os.environ.get('DB_PASSWORD')
