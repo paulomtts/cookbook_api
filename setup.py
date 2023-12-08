@@ -58,7 +58,6 @@ dotenv.load_dotenv(f"{os.getcwd()}/.env")
 # db_name = os.getenv('DB_NAME')
 
 from boto.s3.connection import S3Connection
-s3 = S3Connection(os.environ['S3_KEY'], os.environ['S3_SECRET'])
 db_type = S3Connection(os.environ['DB_TYPE'], os.environ['DB_TYPE'])
 db_user = S3Connection(os.environ['DB_USER'], os.environ['DB_USER'])
 db_password = S3Connection(os.environ['DB_PASSWORD'], os.environ['DB_PASSWORD'])
