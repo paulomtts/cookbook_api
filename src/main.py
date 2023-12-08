@@ -8,7 +8,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.append(parent_dir)
 
-from core.crud import crud_router
+from src.core.crud import crud_router
 from core.auth import auth_router
 from custom.custom import customRoutes_router
 
