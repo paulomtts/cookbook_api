@@ -5,9 +5,10 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.core.schemas import APIOutput, QueryFilters
 from setup import db
 
-from functools import wraps
-import pandas as pd
 from typing import List, Union
+from functools import wraps
+
+import pandas as pd
 
 
 # Decorators
