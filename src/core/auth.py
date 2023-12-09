@@ -46,7 +46,7 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
     otherwise, delete the cookie.
     """
     # cbk_s = request.cookies.get("cbk_s")
-    print(cbk_s)
+    # print(cbk_s)
     try:
         session_cookie = cbk_s
 
@@ -117,8 +117,8 @@ async def auth_callback(request: Request, code: str = Query(...)):
         "grant_type": "authorization_code"
     }
     response = requests.post(token_url, data=data)
-    print(data)
-    print(response)
+    # print(data)
+    # print(response)
     try:
         if response.status_code == 200:
 
@@ -169,6 +169,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 def auth__initiate_session(user_data, session_data):
                     print('submitting')
                     user = db.upsert(Users, [user_data], single=True)
+                    print('inserted user')
                     if user:
                         db.upsert(Sessions, [session_data])
 
