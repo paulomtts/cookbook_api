@@ -14,6 +14,7 @@ from src.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
 import pandas as pd
 import os
 
+SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 
 customRoutes_router = APIRouter()
 
@@ -30,8 +31,7 @@ async def maps(request: Request):
     """
 
     try:
-        cwd = os.getcwd()
-        with open(f"{cwd}/app/custom/maps.json", "r") as f:
+        with open(f"{SELF_PATH}/maps.json", "r") as f:
             json_data = f.read()
 
         db.logger.info(f"Successfully loaded maps.json file.")
