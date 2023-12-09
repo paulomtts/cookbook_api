@@ -27,9 +27,10 @@ auth_router = APIRouter()
 # payload is valid, the server can then verify the user's identity and
 # allow the user to access the protected route.
 
-GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
-GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
-GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI')
+GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
+GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
+GOOGLE_REDIRECT_URI = os.getenv('GOOGLE_REDIRECT_URI')
+FRONTEND_REDIRECT_URI = os.getenv('FRONTEND_REDIRECT_URL')
 
 class MissingSessionError(BaseException):
     """
@@ -38,13 +39,13 @@ class MissingSessionError(BaseException):
     could be an indication that the session token was stolen.
     """
 
-def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
-# def validate_session(response: Response, request: Request):
+# def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
+def validate_session(response: Response, request: Request):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
-    # cbk_s = request.cookies.get("cbk_s")
+    cbk_s = request.cookies.get("cbk_s")
     print(cbk_s)
     try:
         session_cookie = cbk_s
@@ -85,6 +86,7 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
         return decoded_token.get("google_id")
 
     except:
+        print('canceling')
         response.delete_cookie(key="cbk_s")
         headers = {"set-cookie": response.headers["set-cookie"]}
         raise HTTPException(status_code=401, detail="Unauthorized access.", headers=headers)
@@ -114,8 +116,9 @@ async def auth_callback(request: Request, code: str = Query(...)):
         "redirect_uri": GOOGLE_REDIRECT_URI,
         "grant_type": "authorization_code"
     }
-
     response = requests.post(token_url, data=data)
+    print(data)
+    print(response)
     if response.status_code == 200:
 
         access_token = response.json().get("access_token")
@@ -168,7 +171,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
             db_output: DBOutput = auth__initiate_session(user_data, session_data)
             
             if db_output.status == 200:
-                response = RedirectResponse(url="http://localhost:5173")
+                response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
                 response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
                 return response
 
