@@ -39,13 +39,13 @@ class MissingSessionError(BaseException):
     could be an indication that the session token was stolen.
     """
 
-# def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
-def validate_session(response: Response, request: Request):
+def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
+# def validate_session(response: Response, request: Request):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
-    cbk_s = request.cookies.get("cbk_s")
+    # cbk_s = request.cookies.get("cbk_s")
     print(cbk_s)
     try:
         session_cookie = cbk_s
@@ -124,8 +124,11 @@ async def auth_callback(request: Request, code: str = Query(...)):
 
             access_token = response.json().get("access_token")
             if access_token:
+                print('requesting info')
                 user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
+                print(user_info)
 
+                print(1)
                 # 1) collect information
                 hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
                 hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
@@ -134,6 +137,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 user_info: dict = user_info.json()
                 session_token = generate_session_token()
 
+                print(2)
                 # 2) build user & session data
                 user_data = {
                     'google_id': user_info.get("id")
@@ -150,7 +154,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     , 'user_agent': hashed_user_agent
                     , 'client_ip': client_ip
                 }
-
+                print(3)
                 # 3) build payload & generate JWT
                 payload = {
                     "google_id": user_info.get("id")
@@ -158,11 +162,12 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     , "user_agent": hashed_user_agent
                     , "client_ip": client_ip
                 }
-
+                print(4)
                 jwt_token = generate_jwt(payload)
 
                 @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
                 def auth__initiate_session(user_data, session_data):
+                    print('submitting')
                     user = db.upsert(Users, [user_data], single=True)
                     if user:
                         db.upsert(Sessions, [session_data])
@@ -170,6 +175,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     return []
                 
                 db_output: DBOutput = auth__initiate_session(user_data, session_data)
+                print('db_output')
                 
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
@@ -179,7 +185,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)
             raise HTTPException(status_code=401, detail="Invalid or expired session")
     except Exception as e:
-        print(e)
+        print('An error occurred while authenticating the user. Message: \n', e)
     raise HTTPException(status_code=401, detail="Bad request.")
 
 
