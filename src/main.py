@@ -19,8 +19,8 @@ app.add_middleware( # necessary to allow requests from local services
     CORSMiddleware,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
-    # allow_origins=['*'],
-    allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com'],
+    allow_origins=['*'],
+    # allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com'],
     allow_credentials=True,
 )
 
