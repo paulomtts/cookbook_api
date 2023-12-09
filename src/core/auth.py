@@ -119,64 +119,67 @@ async def auth_callback(request: Request, code: str = Query(...)):
     response = requests.post(token_url, data=data)
     print(data)
     print(response)
-    if response.status_code == 200:
+    try:
+        if response.status_code == 200:
 
-        access_token = response.json().get("access_token")
-        if access_token:
-            user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
+            access_token = response.json().get("access_token")
+            if access_token:
+                user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
 
-            # 1) collect information
-            hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
-            hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
+                # 1) collect information
+                hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
+                hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
 
-            client_ip = request.client.host
-            user_info: dict = user_info.json()
-            session_token = generate_session_token()
+                client_ip = request.client.host
+                user_info: dict = user_info.json()
+                session_token = generate_session_token()
 
-            # 2) build user & session data
-            user_data = {
-                'google_id': user_info.get("id")
-                , 'google_email': user_info.get("email")
-                , 'google_picture_url': user_info.get("picture")
-                , 'google_access_token': access_token
-                , 'name': user_info.get("name")
-                , 'locale': user_info.get("locale")
-            }
+                # 2) build user & session data
+                user_data = {
+                    'google_id': user_info.get("id")
+                    , 'google_email': user_info.get("email")
+                    , 'google_picture_url': user_info.get("picture")
+                    , 'google_access_token': access_token
+                    , 'name': user_info.get("name")
+                    , 'locale': user_info.get("locale")
+                }
 
-            session_data = {
-                'google_id': user_info.get("id")
-                , 'token': session_token
-                , 'user_agent': hashed_user_agent
-                , 'client_ip': client_ip
-            }
+                session_data = {
+                    'google_id': user_info.get("id")
+                    , 'token': session_token
+                    , 'user_agent': hashed_user_agent
+                    , 'client_ip': client_ip
+                }
 
-            # 3) build payload & generate JWT
-            payload = {
-                "google_id": user_info.get("id")
-                , "token": session_token
-                , "user_agent": hashed_user_agent
-                , "client_ip": client_ip
-            }
+                # 3) build payload & generate JWT
+                payload = {
+                    "google_id": user_info.get("id")
+                    , "token": session_token
+                    , "user_agent": hashed_user_agent
+                    , "client_ip": client_ip
+                }
 
-            jwt_token = generate_jwt(payload)
+                jwt_token = generate_jwt(payload)
 
-            @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
-            def auth__initiate_session(user_data, session_data):
-                user = db.upsert(Users, [user_data], single=True)
-                if user:
-                    db.upsert(Sessions, [session_data])
+                @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
+                def auth__initiate_session(user_data, session_data):
+                    user = db.upsert(Users, [user_data], single=True)
+                    if user:
+                        db.upsert(Sessions, [session_data])
 
-                return []
-            
-            db_output: DBOutput = auth__initiate_session(user_data, session_data)
-            
-            if db_output.status == 200:
-                response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
-                response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
-                return response
+                    return []
+                
+                db_output: DBOutput = auth__initiate_session(user_data, session_data)
+                
+                if db_output.status == 200:
+                    response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
+                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
+                    return response
 
-            raise HTTPException(status_code=db_output.status, detail=db_output.message)
-        raise HTTPException(status_code=401, detail="Invalid or expired session")
+                raise HTTPException(status_code=db_output.status, detail=db_output.message)
+            raise HTTPException(status_code=401, detail="Invalid or expired session")
+    except Exception as e:
+        print(e)
     raise HTTPException(status_code=401, detail="Bad request.")
 
 
