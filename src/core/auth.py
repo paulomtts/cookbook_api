@@ -117,8 +117,6 @@ async def auth_callback(request: Request, code: str = Query(...)):
         "grant_type": "authorization_code"
     }
     response = requests.post(token_url, data=data)
-    # print(data)
-    # print(response)
     try:
         if response.status_code == 200:
 
@@ -128,7 +126,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
                 print(user_info)
 
-                print(1)
+
                 # 1) collect information
                 hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
                 hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
@@ -137,7 +135,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 user_info: dict = user_info.json()
                 session_token = generate_session_token()
 
-                print(2)
+
                 # 2) build user & session data
                 user_data = {
                     'google_id': user_info.get("id")
@@ -154,7 +152,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     , 'user_agent': hashed_user_agent
                     , 'client_ip': client_ip
                 }
-                print(3)
+
                 # 3) build payload & generate JWT
                 payload = {
                     "google_id": user_info.get("id")
@@ -162,7 +160,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     , "user_agent": hashed_user_agent
                     , "client_ip": client_ip
                 }
-                print(4)
+
                 jwt_token = generate_jwt(payload)
 
                 @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
@@ -176,7 +174,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                     return []
                 
                 db_output: DBOutput = auth__initiate_session(user_data, session_data)
-                print('db_output')
+
                 
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
