@@ -40,13 +40,10 @@ class MissingSessionError(BaseException):
     """
 
 def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
-# def validate_session(response: Response, request: Request):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
-    # cbk_s = request.cookies.get("cbk_s")
-    # print(cbk_s)
     try:
         session_cookie = cbk_s
 
