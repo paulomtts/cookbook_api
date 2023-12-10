@@ -44,6 +44,7 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
+    print(cbk_s)
     try:
         session_cookie = cbk_s
 
@@ -83,7 +84,6 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
         return decoded_token.get("google_id")
 
     except:
-        print('canceling')
         response.delete_cookie(key="cbk_s")
         headers = {"set-cookie": response.headers["set-cookie"]}
         raise HTTPException(status_code=401, detail="Unauthorized access.", headers=headers)
@@ -119,10 +119,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
 
             access_token = response.json().get("access_token")
             if access_token:
-                print('requesting info')
                 user_info = requests.get("https://www.googleapis.com/oauth2/v1/userinfo", headers={"Authorization": f"Bearer {access_token}"})
-                print(user_info)
-
 
                 # 1) collect information
                 hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
@@ -162,9 +159,8 @@ async def auth_callback(request: Request, code: str = Query(...)):
 
                 @db.catching(SuccessMessages(client="User was successfully authenticated.", logger="User authenticated. Session initiated."))
                 def auth__initiate_session(user_data, session_data):
-                    print('submitting')
+                    
                     user = db.upsert(Users, [user_data], single=True)
-                    print('inserted user')
                     if user:
                         db.upsert(Sessions, [session_data])
 
@@ -181,7 +177,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)
             raise HTTPException(status_code=401, detail="Invalid or expired session")
     except Exception as e:
-        print('An error occurred while authenticating the user. Message: \n', e)
+        db.logger.error(f"An error occurred while authenticating a user: \n{e}")
     raise HTTPException(status_code=401, detail="Bad request.")
 
 
