@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query, Depends
+from fastapi import APIRouter, HTTPException, Request, Response, Cookie, Query, Depends, Header
 from fastapi.responses import RedirectResponse, JSONResponse
 
 from core.models import Users, Sessions
@@ -181,13 +181,8 @@ async def auth_callback(request: Request, code: str = Query(...)):
     raise HTTPException(status_code=401, detail="Bad request.")
 
 
-# @auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
-@auth_router.get('/auth/validate')
-async def auth_validate(request: Request, response: Response):
-    cookie = request.cookies.get("cbk_s")
-    print(cookie)
-    if not cookie:
-        raise HTTPException(status_code=401, detail="Unauthorized access.")
+@auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
+async def auth_validate():
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
