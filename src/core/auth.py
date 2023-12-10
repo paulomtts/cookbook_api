@@ -44,7 +44,6 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
-    print(cbk_s)
     try:
         session_cookie = cbk_s
 
@@ -181,8 +180,10 @@ async def auth_callback(request: Request, code: str = Query(...)):
     raise HTTPException(status_code=401, detail="Bad request.")
 
 
-@auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
-async def auth_validate():
+# @auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
+@auth_router.get('/auth/validate')
+async def auth_validate(cbk_s: Annotated[str | None, Cookie()]):
+    print(cbk_s)
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
