@@ -186,6 +186,8 @@ async def auth_callback(request: Request, code: str = Query(...)):
 async def auth_validate(request: Request, response: Response):
     cookie = request.cookies.get("cbk_s")
     print(cookie)
+    if not cookie:
+        raise HTTPException(status_code=401, detail="Unauthorized access.")
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
