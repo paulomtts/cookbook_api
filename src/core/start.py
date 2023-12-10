@@ -37,6 +37,4 @@ port = os.getenv('DB_PORT')
 database = os.getenv('DB_DATABASE')
 schema = os.getenv('DB_NAME')
 
-print(type, user, database, password, host, port, schema)
-
 db = DBManager(type, user, password, host, port, database, schema, logger)
