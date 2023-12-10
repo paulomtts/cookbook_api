@@ -171,7 +171,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
                     # response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
-                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, domain='my-domain', expires=(60 * 60 * 24 * 7))
+                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, expires=(60 * 60 * 24 * 7))
                     return response
 
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)

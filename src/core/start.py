@@ -28,7 +28,7 @@ logging.config.dictConfig({
 logger = logging.getLogger('root')
 logger.setLevel(logging.DEBUG)
 
-# dotenv.load_dotenv()
+dotenv.load_dotenv()
 type = os.getenv('DB_TYPE')
 user = os.getenv('DB_USER')
 password = os.getenv('DB_PASSWORD')
