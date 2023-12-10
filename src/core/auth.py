@@ -171,7 +171,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
                     # response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
-                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, domain=".herokuapp.com", expires=(60 * 60 * 24 * 7))
+                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, expires=(60 * 60 * 24 * 7))
                     return response
 
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)
@@ -183,8 +183,9 @@ async def auth_callback(request: Request, code: str = Query(...)):
 
 # @auth_router.get('/auth/validate', dependencies=[Depends(validate_session)])
 @auth_router.get('/auth/validate')
-async def auth_validate(cbk_s: Annotated[str | None, Cookie()]):
-    print(cbk_s)
+async def auth_validate(request: Request, response: Response):
+    cookie = request.cookies.get("cbk_s")
+    print(cookie)
     return JSONResponse(status_code=200, content={"message": "Session is valid."})
 
 
