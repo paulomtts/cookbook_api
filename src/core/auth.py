@@ -39,13 +39,18 @@ class MissingSessionError(BaseException):
     could be an indication that the session token was stolen.
     """
 
-def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
+def validate_session(response: Response, request: Request):
+# def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
     try:
-        session_cookie = cbk_s
+        # session_cookie = cbk_s
+        session_cookie = request.cookies.get("cbk_s")
+        print('session_cookie', type(session_cookie), ':', session_cookie)
+        # convert token type to bytes
+        session_cookie = session_cookie.encode('utf-8')
 
         hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
         hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
@@ -77,15 +82,15 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
         is_valid_session, _, _ = auth__validate_session(decoded_token, hashed_user_agent, client_ip)
 
         if not is_valid_session:
-            db.logger.error("Session token belonged to us, but no session matched it's data. Was this token stolen?")
+            db.logger.error("Session token belonged to us, but no session matched it's data. Was this cookie stolen?")
             raise MissingSessionError("No session could be found matching the provided session token.")
         
         return decoded_token.get("google_id")
 
-    except:
+    except Exception as e:
+        db.logger.error(f"An error occurred while validating a session: \n{e}")
         response.delete_cookie(key="cbk_s")
-        headers = {"set-cookie": response.headers["set-cookie"]}
-        raise HTTPException(status_code=401, detail="Unauthorized access.", headers=headers)
+        raise HTTPException(status_code=401, detail="Unauthorized access.", headers=response.headers)
 
 
 # Routes
@@ -171,7 +176,7 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
                     # response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
-                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, domain='.cookbook.lat', expires=(60 * 60 * 24 * 7))
+                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, expires=(60 * 60 * 24 * 7))
                     return response
 
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)
