@@ -39,18 +39,16 @@ class MissingSessionError(BaseException):
     could be an indication that the session token was stolen.
     """
 
-def validate_session(response: Response, request: Request):
-# def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
+# def validate_session(response: Response, request: Request):
+def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
     try:
-        # session_cookie = cbk_s
-        session_cookie = request.cookies.get("cbk_s")
-        print('session_cookie', type(session_cookie), ':', session_cookie)
-        # convert token type to bytes
-        session_cookie = session_cookie.encode('utf-8')
+        # session_cookie = request.cookies.get("cbk_s")
+        # session_cookie = session_cookie.encode('utf-8')
+        session_cookie = cbk_s.encode('utf-8')
 
         hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
         hashed_user_agent = base64.b64encode(hashed_user_agent).decode('utf-8')
@@ -172,11 +170,9 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 
                 db_output: DBOutput = auth__initiate_session(user_data, session_data)
 
-                db.logger.info(f"DB Output: {db_output}")
                 if db_output.status == 200:
                     response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}", headers=request.headers)
                     response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite='none', secure=True, expires=(60 * 60 * 24 * 7))
-                    db.logger.info(f"Callback response headers: {response.headers}")
                     return response
 
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)
