@@ -89,7 +89,7 @@ def validate_session(response: Response, request: Request):
 
     except Exception as e:
         db.logger.error(f"An error occurred while validating a session: \n{e}")
-        response.delete_cookie(key="cbk_s")
+        # response.delete_cookie(key="cbk_s")
         raise HTTPException(status_code=401, detail="Unauthorized access.", headers=response.headers)
 
 
@@ -172,11 +172,11 @@ async def auth_callback(request: Request, code: str = Query(...)):
                 
                 db_output: DBOutput = auth__initiate_session(user_data, session_data)
 
-                
+                db.logger.info(f"DB Output: {db_output}")
                 if db_output.status == 200:
-                    response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}")
-                    # response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, expires=(60 * 60 * 24 * 7))
-                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite=None, secure=True, expires=(60 * 60 * 24 * 7))
+                    response = RedirectResponse(url=f"{FRONTEND_REDIRECT_URI}", headers=request.headers)
+                    response.set_cookie(key="cbk_s", value=jwt_token, httponly=True, samesite='none', secure=True, expires=(60 * 60 * 24 * 7))
+                    db.logger.info(f"Callback response headers: {response.headers}")
                     return response
 
                 raise HTTPException(status_code=db_output.status, detail=db_output.message)

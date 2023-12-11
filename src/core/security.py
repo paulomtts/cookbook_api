@@ -27,10 +27,10 @@ def generate_rsa_key_pair():
                                         format=serialization.PublicFormat.SubjectPublicKeyInfo)
     
 
-    with open(f'{CURR_DIR}/vault/jwt_public_key.pem', 'wb') as public_key_file:
+    with open(f'{CURR_DIR}/vault/public_key.pem', 'wb') as public_key_file:
         public_key_file.write(public_key_der)
 
-    with open(f'{CURR_DIR}/vault/jwt_private_key.pem', 'wb') as private_key_file:
+    with open(f'{CURR_DIR}/vault/private_key.pem', 'wb') as private_key_file:
         private_key_file.write(private_key_pem)
 
 def hash_plaintext(plaintext) -> bytes:
