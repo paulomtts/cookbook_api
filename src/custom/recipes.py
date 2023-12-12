@@ -81,9 +81,10 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
             old_recipe_ingredients = pd.DataFrame(columns=curr_recipe_ingredients.columns)
 
 
+        # build insert, update, and delete dataframes
         merged_df = old_recipe_ingredients.merge(curr_recipe_ingredients, how='outer', indicator=True)
         merged_df['id_recipe'] = recipe_object.id
-        merged_df['id'] = merged_df['id'].astype('Int64')      
+        merged_df['id'] = merged_df['id'].astype('Int64')    
 
         insert_df = merged_df.query('_merge == "right_only"')\
                              .drop(['id', 'created_at', 'updated_at', '_merge'], axis=1, errors='ignore')
@@ -97,6 +98,18 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
         append_user_credentials(insert_df, user_id)
         append_user_credentials(update_df, user_id)
 
+
+        # filter out data from other users
+        if 'created_by' in insert_df.columns:   
+            insert_df = insert_df[insert_df['created_by'] == user_id]
+
+        if 'created_by' in update_df.columns:
+            update_df = update_df[update_df['created_by'] == user_id]
+
+        if 'created_by' in delete_df.columns:
+            delete_df = delete_df[delete_df['created_by'] == user_id]
+
+
         # perform operations
         if not insert_df.empty: db.insert(RecipeIngredients, insert_df.to_dict('records'))
         if not update_df.empty: db.update(RecipeIngredients, update_df.to_dict('records'))
@@ -107,15 +120,15 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
         return {
             'form_data': recipe_object,
             'recipes_data': db.query(Recipes),
-            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(recipe_object.id)),
-            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id)),
+            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(recipe_object.id, user_id)),
+            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id, user_id)),
         }
     
     return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)
 
 
-@customRecipes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
-async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
+@customRecipes_router.delete("/custom/delete_recipe")
+async def delete_recipe(input: CSTDeleteRecipeInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Delete a recipe from the database.
     """
@@ -123,14 +136,16 @@ async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     @api_output
     @db.catching(messages=SuccessMessages('Recipe deleted successfully.'))
     def delete_recipe_touch(recipe_filters: DeleteFilters, composition_filters: DeleteFilters) -> DBOutput:
+        composition_where = WhereConditions(and_={composition_filters.field: composition_filters.values, 'created_by': [id_user]})
+        recipe_where = WhereConditions(and_={recipe_filters.field: recipe_filters.values, 'created_by': [id_user]})
 
-        db.delete(RecipeIngredients, composition_filters)
-        db.delete(Recipes, recipe_filters)
+        db.delete(RecipeIngredients, composition_where)
+        db.delete(Recipes, recipe_where)
         db.session.commit()
 
         return {
             'recipes_data': db.query(Recipes),
-            'recipe_ingredients_data': db.query(None, EMPTY_QUERY),
+            'recipe_ingredients_data': db.query(None, EMPTY_QUERY(id_user)),
         }
 
     return delete_recipe_touch(input.recipe, input.composition)
