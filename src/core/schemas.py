@@ -39,6 +39,12 @@ class WhereConditions(BaseModel):
     like_: Optional[dict[str, List[str | int]]] = {}
     not_like_: Optional[dict[str, List[str | int]]] = {}
 
+    def __iter__(self):
+        yield self.or_
+        yield self.and_
+        yield self.like_
+        yield self.not_like_
+
 class DeleteFilters(BaseModel):
     field: str
     values: List[str | int]

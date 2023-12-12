@@ -121,7 +121,7 @@ async def crud_select(input: CRUDSelectInput, id_user: str = Depends(validate_se
     )
 
     if isinstance(input.filters.and_, dict):
-        input.filters.and_['created_by'] = [id_user]
+        input.filters.or_['created_by'] = [id_user, 'system']
 
     @api_output
     @db.catching(messages=messages)

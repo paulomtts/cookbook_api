@@ -54,7 +54,4 @@ async def get_user(id_user: str = Depends(validate_session)):
 
         return FilteredUser(user.name, user.google_picture_url)
     
-    result = get_user(id_user)
-    print(result)
-
-    return result
+    return get_user(id_user)

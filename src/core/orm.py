@@ -218,6 +218,7 @@ class DBManager():
         Returns:
             - List: The list of conditions to be applied to the query.
         """
+
         conditions = []
         if filters.and_:
             and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.and_.items()]
@@ -360,7 +361,14 @@ class DBManager():
 
         conditions = self._build_conditions(table_cls, filters) if filters else []
 
-        statement = delete(table_cls).where(and_(*conditions)).returning(table_cls)
+        for dct in filters:
+            for values in dct.values():
+                if 'system' in values:
+                    raise ValueError("Cannot delete system records.")
+                
+        not_system_conditions = [getattr(table_cls, 'created_by') != 'system']
+
+        statement = delete(table_cls).where(and_(*conditions, *not_system_conditions)).returning(table_cls)
 
         returnings = self.session.execute(statement)
         df = self._parse_returnings(returnings, mapping_cls=table_cls)
