@@ -20,8 +20,8 @@ app.add_middleware( # necessary to allow requests from local services
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
     # allow_origins=['*'],
-    # allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com', 'https://cbk-frt.azurewebsites.net', 'http://localhost:5173'],
-    allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com', 'https://cbk-frt.azurewebsites.net'],
+    allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com', 'https://cbk-frt.azurewebsites.net', 'http://localhost:5173'],
+    # allow_origins=['https://cbk-frt-a0-0-4-d329a0a2f76c.herokuapp.com', 'https://cbk-frt.azurewebsites.net'],
     allow_credentials=True,
 )
 
@@ -34,5 +34,5 @@ app.include_router(customRoutes_router)
 async def azuretest():
     return JSONResponse(status_code=200, content={"message": "healthy."})
 
-# if __name__ == '__main__':
-#     uvicorn.run('main:app', reload=True, reload_dirs=['app'], port=8000)
+if __name__ == '__main__':
+    uvicorn.run('main:app', reload=True, reload_dirs=['app'], port=8000)

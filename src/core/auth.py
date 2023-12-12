@@ -39,15 +39,13 @@ class MissingSessionError(BaseException):
     could be an indication that the session token was stolen.
     """
 
-# def validate_session(response: Response, request: Request):
+
 def validate_session(response: Response, request: Request, cbk_s: Annotated[str | None, Cookie()]):
     """
     Validate the session cookie. If the cookie is valid, extend the expiration,
     otherwise, delete the cookie.
     """
     try:
-        # session_cookie = request.cookies.get("cbk_s")
-        # session_cookie = session_cookie.encode('utf-8')
         session_cookie = cbk_s.encode('utf-8')
 
         hashed_user_agent = hash_plaintext(json.dumps(request.headers.get("User-Agent")))
@@ -87,7 +85,7 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
 
     except Exception as e:
         db.logger.error(f"An error occurred while validating a session: \n{e}")
-        # response.delete_cookie(key="cbk_s")
+        response.delete_cookie(key="cbk_s")
         raise HTTPException(status_code=401, detail="Unauthorized access.", headers=response.headers)
 
 
@@ -189,5 +187,5 @@ async def auth_validate():
 
 @auth_router.get('/auth/logout')
 async def auth_logout(response: Response):
-    response.delete_cookie(key="cbk_s")
+    response.delete_cookie(key="cbk_s", httponly=True, samesite='none', secure=True)
     return JSONResponse(status_code=200, content={"message": "Session has been terminated."}, headers=response.headers)
