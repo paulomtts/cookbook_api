@@ -5,9 +5,6 @@ from src.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInp
 from src.core.methods import api_output, append_user_credentials
 from src.core.auth import validate_session
 from src.core.start import db
-from src.custom.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITION_LOADED_QUERY, RECIPE_COMPOSITION_SNAPSHOT_QUERY
-
-from collections import namedtuple
 
 
 crud_router = APIRouter()
@@ -19,13 +16,6 @@ TABLE_MAP = {
     , 'recipes': Recipes
     , 'ingredients': Ingredients
     , 'recipe_ingredients': RecipeIngredients
-}
-
-ComplexQuery = namedtuple('ComplexQuery', ['statement', 'name'])
-QUERY_MAP = {
-    'recipe_composition_empty': ComplexQuery(RECIPE_COMPOSITION_EMPTY_QUERY, 'empty Recipe composition')
-    , 'recipe_composition_loaded': ComplexQuery(RECIPE_COMPOSITION_LOADED_QUERY, 'loaded Recipe composition')
-    , 'recipe_composition_snapshot': ComplexQuery(RECIPE_COMPOSITION_SNAPSHOT_QUERY, 'Recipe')
 }
 
 
