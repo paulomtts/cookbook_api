@@ -6,7 +6,7 @@ from src.core.auth import validate_session
 from src.core.methods import api_output, check_stale_data, append_user_credentials
 from src.core.models import  Recipes, RecipeIngredients
 from src.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
-from src.core.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
+from src.custom.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
 from src.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
@@ -16,10 +16,10 @@ import os
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 
-customRoutes_router = APIRouter()
+recipes_router = APIRouter()
 
 
-@customRoutes_router.get("/custom/maps")
+@recipes_router.get("/custom/maps")
 async def maps(request: Request):
     """
     Obtain the maps.json file.
@@ -42,7 +42,7 @@ async def maps(request: Request):
     return JSONResponse(status_code=200, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=request.headers)
 
 
-@customRoutes_router.post("/custom/upsert_recipe")
+@recipes_router.post("/custom/upsert_recipe")
 async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Update a recipe in the database.
@@ -114,7 +114,7 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
     return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)
 
 
-@customRoutes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
+@recipes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
 async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     """
     Delete a recipe from the database.

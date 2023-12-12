@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 
 from src.core.models import Categories, Units, Recipes, Ingredients, RecipeIngredients
 from src.core.schemas import DBOutput, APIOutput, CRUDSelectInput, CRUDDeleteInput, CRUDInsertInput, CRUDUpdateInput, SuccessMessages
@@ -109,20 +109,20 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
     """
     table_cls = TABLE_MAP.get(input.table_name)
 
-    if not table_cls:
-        raise HTTPException(status_code=400, detail=f"Table <{input.table_name}> does not exist.")
-
+    query = QUERY_MAP.get(input.table_name, ComplexQuery(None, None))
+    statement = query.statement if not callable(query.statement)\
+                                else query.statement(**input.lambda_kwargs if input.lambda_kwargs else {}) 
     messages = SuccessMessages(
-        client=f"{input.table_name.capitalize()[:-1]} retrieved."
+        client=f"{input.table_name.capitalize()[:-1]} retrieved." if table_cls else f"{query.name.capitalize()} retrieved."
         , logger=f"Querying <{input.table_name}> was succesful! Filters: {input.filters}"
     )
 
     @api_output
     @db.catching(messages=messages)
-    def crud__select(table_cls, filters):
-        return db.query(table_cls=table_cls, filters=filters)
+    def crud__select(table_cls, statement, filters):
+        return db.query(table_cls=table_cls, statement=statement, filters=filters)
 
-    return crud__select(table_cls, input.filters)
+    return crud__select(table_cls, statement, input.filters)
 
 
 @crud_router.put("/crud/update")
