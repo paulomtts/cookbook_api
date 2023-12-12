@@ -14,35 +14,13 @@ from src.custom.schemas import CSTUpsertRecipe, CSTDeleteRecipeInput
 import pandas as pd
 import os
 
-SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 
 customRecipes_router = APIRouter()
 
 
-@customRecipes_router.get("/custom/maps")
-async def maps(request: Request):
-    """
-    Obtain the maps.json file.
+SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 
-    <h3>Returns:</h3>
-        <ul>
-        <li>JSONResponse: The JSON response containing the json.</li>
-        </ul>
-    """
-
-    try:
-        with open(f"{SELF_PATH}/maps.json", "r") as f:
-            json_data = f.read()
-
-        db.logger.info(f"Successfully loaded maps.json file.")
-    except Exception as e:
-        db.logger.error(f"Could not load maps.json file. Error: {e}")
-        json_data = {}
-
-    return JSONResponse(status_code=200, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=request.headers)
-
-
-@customRecipes_router.post("/custom/upsert_recipe")
+@customRecipes_router.post("/custom/recipes/upsert_recipe")
 async def submit_recipe(input: CSTUpsertRecipe, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Update a recipe in the database.
@@ -127,7 +105,7 @@ async def submit_recipe(input: CSTUpsertRecipe, id_user: str = Depends(validate_
     return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)
 
 
-@customRecipes_router.delete("/custom/delete_recipe")
+@customRecipes_router.delete("/custom/recipes/delete_recipe")
 async def delete_recipe(input: CSTDeleteRecipeInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Delete a recipe from the database.

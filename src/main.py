@@ -14,6 +14,7 @@ sys.path.append(parent_dir)
 from src.core.auth import auth_router
 from src.custom.routes.crud import customCrud_router
 from src.custom.routes.recipes import customRecipes_router
+from src.custom.routes.configs import customConfigs_router
 
 app = FastAPI()
 app.add_middleware( # necessary to allow requests from local services
@@ -30,6 +31,7 @@ app.include_router(auth_router)
 
 app.include_router(customCrud_router)
 app.include_router(customRecipes_router)
+app.include_router(customConfigs_router)
 
 
 @app.get('/health')
