@@ -417,7 +417,7 @@ class DBManager():
         """
         def decorator(func):
             def wrapper(*args, **kwargs):
-                # try:
+                try:
                     content = func(*args, **kwargs)
                     self.session.commit()
 
@@ -429,16 +429,16 @@ class DBManager():
                         , status=STATUS_MAP[200]
                         , message=messages.client if messages else 'Operation was successful.'
                     )
-                # except tuple(ERROR_MAP.keys()) as e:
-                #     self.session.rollback()
+                except tuple(ERROR_MAP.keys()) as e:
+                    self.session.rollback()
 
-                #     error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
-                #     self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
+                    error = ERROR_MAP.get(type(e), ERROR_MAP[Exception])
+                    self.logger.error(f"{error.logger_message}\nMethod: <{func.__name__}>\nMessage:\n\n {e}.\n")
 
-                #     return DBOutput(
-                #         data=[]
-                #         , status=error.status_code
-                #         , message=error.client_message
-                #     )
+                    return DBOutput(
+                        data=[]
+                        , status=error.status_code
+                        , message=error.client_message
+                    )
             return wrapper
         return decorator

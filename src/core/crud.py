@@ -182,7 +182,6 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
         </ul>
     """
     table_cls = TABLE_MAP.get(input.table_name)
-    # filter_objects = [ftr for ftr in input.filters]
 
     messages = SuccessMessages(
         client=f"{input.table_name.capitalize()} deleted."
