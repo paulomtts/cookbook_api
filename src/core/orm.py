@@ -30,6 +30,9 @@ STATUS_MAP = {
 class UnchangedStateError(BaseException):
     pass
 
+class SystemDataError(BaseException):
+    pass
+
 ERROR_MAP = {
     IntegrityError: ErrorObject(
         STATUS_MAP[400]
@@ -83,6 +86,12 @@ ERROR_MAP = {
         STATUS_MAP[304]
         , "Unchanged state."
         , "No changes were made to the data."
+    )
+
+    , SystemDataError: ErrorObject(
+        STATUS_MAP[400]
+        , "System data error."
+        , "Cannot modify system data."
     )
 
     , Exception: ErrorObject(
@@ -282,6 +291,7 @@ class DBManager():
             return self._single(table_cls, df)
 
         return df
+    
 
 
     def insert(self, table_cls, data_list: List[dict], single: bool = False):
@@ -365,6 +375,10 @@ class DBManager():
             for values in dct.values():
                 if 'system' in values:
                     raise ValueError("Cannot delete system records.")
+        
+        preliminary_query = self.query(table_cls, filters=filters)
+        if 'system' in preliminary_query['created_by'].values:
+            raise SystemDataError("Cannot delete system records.")
                 
         not_system_conditions = [getattr(table_cls, 'created_by') != 'system']
 
