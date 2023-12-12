@@ -20,7 +20,7 @@ TABLE_MAP = {
 
 
 @crud_router.post("/crud/insert")
-async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_insert(input: CRUDInsertInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Inserts data into the specified table.
 
@@ -42,7 +42,7 @@ async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_se
         , logger=f"Insert in <{input.table_name.capitalize()}> was successful. Data: {input.data}"
     )
 
-    append_user_credentials(input.data, user_id)
+    append_user_credentials(input.data, id_user)
     
     @api_output
     @db.catching(messages=messages)
@@ -116,7 +116,7 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
 
 
 @crud_router.put("/crud/update")
-async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_update(input: CRUDUpdateInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Update a record in the specified table.
 
@@ -138,7 +138,7 @@ async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_se
         , logger=f"Update in {input.table_name.capitalize()} was successful. Data: {input.data}"
     )
 
-    append_user_credentials(input.data, user_id, created_by=False, updated_by=True)
+    append_user_credentials(input.data, id_user, created_by=False, updated_by=True)
 
     @api_output
     @db.catching(messages=messages)

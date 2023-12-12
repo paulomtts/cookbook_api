@@ -43,12 +43,12 @@ async def maps(request: Request):
 
 
 @customRecipes_router.post("/custom/upsert_recipe")
-async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_session)) -> APIOutput:
+async def submit_recipe(input: CSTUpsertRecipe, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Update a recipe in the database.
     """
     form_data = {key: value for key, value in input.form_data.items() if value != ''}
-    append_user_credentials(form_data, user_id)
+    append_user_credentials(form_data, id_user)
 
     timestamp = input.reference_time
 
@@ -95,19 +95,19 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
         
 
         # append user credentials
-        append_user_credentials(insert_df, user_id)
-        append_user_credentials(update_df, user_id)
+        append_user_credentials(insert_df, id_user)
+        append_user_credentials(update_df, id_user)
 
 
         # filter out data from other users
         if 'created_by' in insert_df.columns:   
-            insert_df = insert_df[insert_df['created_by'] == user_id]
+            insert_df = insert_df[insert_df['created_by'] == id_user]
 
         if 'created_by' in update_df.columns:
-            update_df = update_df[update_df['created_by'] == user_id]
+            update_df = update_df[update_df['created_by'] == id_user]
 
         if 'created_by' in delete_df.columns:
-            delete_df = delete_df[delete_df['created_by'] == user_id]
+            delete_df = delete_df[delete_df['created_by'] == id_user]
 
 
         # perform operations
@@ -120,8 +120,8 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
         return {
             'form_data': recipe_object,
             'recipes_data': db.query(Recipes),
-            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(recipe_object.id, user_id)),
-            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id, user_id)),
+            'recipe_ingredients_loaded': db.query(None, LOADED_QUERY(recipe_object.id, id_user)),
+            'recipe_ingredients_snapshot': db.query(None, SNAPSHOT_QUERY(recipe_object.id, id_user)),
         }
     
     return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)

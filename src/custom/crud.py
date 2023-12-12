@@ -30,7 +30,7 @@ QUERY_MAP = {
 
 
 @customCrud_router.post("/custom/crud/insert")
-async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_insert(input: CRUDInsertInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Inserts data into the specified table.
 
@@ -52,7 +52,7 @@ async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_se
         , logger=f"Insert in <{input.table_name.capitalize()}> was successful. Data: {input.data}"
     )
 
-    append_user_credentials(input.data, user_id)
+    append_user_credentials(input.data, id_user)
     
     @api_output
     @db.catching(messages=messages)
@@ -63,7 +63,7 @@ async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_se
 
 
 @customCrud_router.post("/custom/crud/select")
-async def crud_select(input: CRUDSelectInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_select(input: CRUDSelectInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Selects data from a specified table in the database based on the provided filters.
 
@@ -108,7 +108,7 @@ async def crud_select(input: CRUDSelectInput, user_id: str = Depends(validate_se
         </ul>
     """
 
-    input.lambda_kwargs['id_user'] = user_id
+    input.lambda_kwargs['id_user'] = id_user
 
     table_cls = TABLE_MAP.get(input.table_name)
 
@@ -121,7 +121,7 @@ async def crud_select(input: CRUDSelectInput, user_id: str = Depends(validate_se
     )
 
     if isinstance(input.filters.and_, dict):
-        input.filters.and_['created_by'] = [user_id]
+        input.filters.and_['created_by'] = [id_user]
 
     @api_output
     @db.catching(messages=messages)
@@ -132,7 +132,7 @@ async def crud_select(input: CRUDSelectInput, user_id: str = Depends(validate_se
 
 
 @customCrud_router.put("/custom/crud/update")
-async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_update(input: CRUDUpdateInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Update a record in the specified table.
 
@@ -154,7 +154,7 @@ async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_se
         , logger=f"Update in {input.table_name.capitalize()} was successful. Data: {input.data}"
     )
 
-    append_user_credentials(input.data, user_id, created_by=False, updated_by=True)
+    append_user_credentials(input.data, id_user, created_by=False, updated_by=True)
 
     @api_output
     @db.catching(messages=messages)
@@ -165,7 +165,7 @@ async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_se
 
 
 @customCrud_router.delete("/custom/crud/delete")
-async def crud_delete(input: CRUDDeleteInput, user_id: str = Depends(validate_session)) -> APIOutput:
+async def crud_delete(input: CRUDDeleteInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
     Delete records from a specified table based on the provided filters. Filters example:
     <pre>
@@ -194,7 +194,7 @@ async def crud_delete(input: CRUDDeleteInput, user_id: str = Depends(validate_se
     )
 
     if isinstance(input.filters.and_, dict):
-        input.filters.and_['created_by'] = [user_id]
+        input.filters.and_['created_by'] = [id_user]
 
     @api_output
     @db.catching(messages=messages)
