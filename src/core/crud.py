@@ -18,7 +18,7 @@ TABLE_MAP = {
     , 'recipe_ingredients': RecipeIngredients
 }
 
-
+################# DEVELOPMENT ONLY #################
 @crud_router.post("/crud/insert")
 async def crud_insert(input: CRUDInsertInput, id_user: str = Depends(validate_session)) -> APIOutput:
     """
@@ -183,3 +183,4 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
         return db.delete(table_cls, filters)
     
     return crud__delete(table_cls, input.filters)
+################# DEVELOPMENT ONLY #################
