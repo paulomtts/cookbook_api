@@ -10,7 +10,7 @@ from src.custom.queries import RECIPE_COMPOSITION_EMPTY_QUERY, RECIPE_COMPOSITIO
 from collections import namedtuple
 
 
-crud_router = APIRouter()
+customCrud_router = APIRouter()
 
 
 TABLE_MAP = {
@@ -29,7 +29,7 @@ QUERY_MAP = {
 }
 
 
-@crud_router.post("/crud/insert")
+@customCrud_router.post("/custom/crud/insert")
 async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Inserts data into the specified table.
@@ -62,8 +62,8 @@ async def crud_insert(input: CRUDInsertInput, user_id: str = Depends(validate_se
     return crud__insert(table_cls, input.data)
 
 
-@crud_router.post("/crud/select", dependencies=[Depends(validate_session)])
-async def crud_select(input: CRUDSelectInput) -> APIOutput:
+@customCrud_router.post("/custom/crud/select")
+async def crud_select(input: CRUDSelectInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Selects data from a specified table in the database based on the provided filters.
 
@@ -107,6 +107,9 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
         <li>JSONResponse: The response containing the selected data and a message.</li>
         </ul>
     """
+
+    input.lambda_kwargs['id_user'] = user_id
+
     table_cls = TABLE_MAP.get(input.table_name)
 
     query = QUERY_MAP.get(input.table_name, ComplexQuery(None, None))
@@ -117,6 +120,9 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
         , logger=f"Querying <{input.table_name}> was succesful! Filters: {input.filters}"
     )
 
+    if isinstance(input.filters.and_, dict):
+        input.filters.and_['created_by'] = [user_id]
+
     @api_output
     @db.catching(messages=messages)
     def crud__select(table_cls, statement, filters):
@@ -125,7 +131,7 @@ async def crud_select(input: CRUDSelectInput) -> APIOutput:
     return crud__select(table_cls, statement, input.filters)
 
 
-@crud_router.put("/crud/update")
+@customCrud_router.put("/custom/crud/update")
 async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Update a record in the specified table.
@@ -158,23 +164,22 @@ async def crud_update(input: CRUDUpdateInput, user_id: str = Depends(validate_se
     return crud__update(table_cls, input.data)
 
 
-@crud_router.delete("/crud/delete", dependencies=[Depends(validate_session)])
-async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
+@customCrud_router.delete("/custom/crud/delete")
+async def crud_delete(input: CRUDDeleteInput, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Delete records from a specified table based on the provided filters. Filters example:
     <pre>
     <code>
     {
-        'id': [1, 2, 3]
+        and_: {
+            "id": [1, 2, 3],
+            "name": ["value1", "value2"],
+        },
     }
     </code>
     </pre>
 
-    <h3>Args:</h3>
-        <ul>
-        <li>table_name (str): The name of the table to delete records from.</li>
-        <li>data (dict): The request body containing the filters.</li>
-        </ul>
+    Filters accept and, or, like and not like conditions.
 
     <h3>Returns:</h3>
         <ul>
@@ -187,6 +192,9 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
         client=f"{input.table_name.capitalize()} deleted."
         , logger=f"Delete in {input.table_name.capitalize()} was successful. Filters: {input.filters}"
     )
+
+    if isinstance(input.filters.and_, dict):
+        input.filters.and_['created_by'] = [user_id]
 
     @api_output
     @db.catching(messages=messages)

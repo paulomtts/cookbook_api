@@ -33,14 +33,11 @@ class TableNames(BaseModel):
             
         return value
 
-class QueryFilters(BaseModel):
-    or_: Optional[dict[str, List[str | int]]]
-    and_: Optional[dict[str, List[str | int]]]
-    like_: Optional[dict[str, List[str | int]]]
-    not_like_: Optional[dict[str, List[str | int]]]
-
-class QueryArgs(BaseModel):
-    kwargs: Optional[dict[str, Any]]
+class WhereConditions(BaseModel):
+    or_: Optional[dict[str, List[str | int]]] = {}
+    and_: Optional[dict[str, List[str | int]]] = {}
+    like_: Optional[dict[str, List[str | int]]] = {}
+    not_like_: Optional[dict[str, List[str | int]]] = {}
 
 class DeleteFilters(BaseModel):
     field: str
@@ -58,14 +55,14 @@ class CRUDInsertInput(TableNames, BaseModel):
     data: list
 
 class CRUDSelectInput(TableNames, BaseModel):
-    filters: Optional[QueryFilters]
-    lambda_kwargs: Optional[dict[str, Any]]
+    filters: Optional[WhereConditions] = WhereConditions()
+    lambda_kwargs: Optional[dict[str, Any]] = {}
 
 class CRUDUpdateInput(TableNames, BaseModel):
     data: dict
 
 class CRUDDeleteInput(TableNames, BaseModel):
-    filters: List[DeleteFilters]
+    filters: Optional[WhereConditions]
 
 
 class DBOutput(BaseModel):

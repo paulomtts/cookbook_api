@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse, JSONResponse
 
 from src.core.start import db
 from src.core.models import Users, Sessions
-from src.core.schemas import SuccessMessages, DBOutput, QueryFilters
+from src.core.schemas import SuccessMessages, DBOutput, WhereConditions
 from src.core.security import generate_session_token, hash_plaintext, generate_jwt, decode_jwt
 
 from typing import Annotated
@@ -67,7 +67,7 @@ def validate_session(response: Response, request: Request, cbk_s: Annotated[str 
                 , 'client_ip': [client_ip]
             }
 
-            filters = QueryFilters(and_=session_data)
+            filters = WhereConditions(and_=session_data)
             session = db.query(Sessions, filters=filters, single=True)
 
             if session:

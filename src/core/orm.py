@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError, InternalError, OperationalError, Prog
 from sqlalchemy.orm.exc import StaleDataError
 from sqlalchemy.sql.selectable import Select
 
-from src.core.schemas import DBOutput, QueryFilters, SuccessMessages, DeleteFilters
+from src.core.schemas import DBOutput, WhereConditions, SuccessMessages
 
 from collections import namedtuple
 from datetime import datetime
@@ -207,7 +207,38 @@ class DBManager():
         return tuple_cls(**dct)
     
 
-    def query(self, table_cls, statement: Select = None, filters: QueryFilters = None, order_by: List[str] = None, single: bool = None):
+    def _build_conditions(self, table_cls, filters: WhereConditions):
+        """
+        Builds the conditions for a query.
+
+        Args:
+            - table_cls (class): The table class to build the conditions for.
+            - filters (QueryFilters): The filters to apply to the query.
+
+        Returns:
+            - List: The list of conditions to be applied to the query.
+        """
+        conditions = []
+        if filters.and_:
+            and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.and_.items()]
+            conditions.append(and_(*and_conditions))
+
+        if filters.or_:
+            or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.or_.items()]
+            conditions.append(or_(*or_conditions))
+
+        if filters.like_:
+            like_conditions = [getattr(table_cls, attr).like(val) for attr, values in filters.like_.items() for val in values]
+            conditions.append(or_(*like_conditions))
+
+        if filters.not_like_:
+            not_like_conditions = [getattr(table_cls, attr).notlike(val) for attr, values in filters.not_like_.items() for val in values]
+            conditions.append(and_(*not_like_conditions))
+
+        return conditions
+
+
+    def query(self, table_cls, statement: Select = None, filters: WhereConditions = None, order_by: List[str] = None, single: bool = None):
         """
         Executes a database query based on the provided parameters. Accepts either a table class or a select statement. If
         a statement is provided, filters and order_by are ignored.
@@ -223,34 +254,17 @@ class DBManager():
             - pandas.DataFrame or namedtuple: If single is False, returns a DataFrame containing the updated records.
             - If `single` is `True`, a `namedtuple` representing the first updated record.
         """
-
+                
         if table_cls is None and statement is None:
             raise ValueError("Either table_cls or statement must be specified.")
         if table_cls is not None and statement is not None:
-            raise ValueError("Only one of table_cls or statement can be specified.")
+            raise ValueError("Either table_cls or statement must be specified, not both.")
 
         if table_cls:
 
-            conditions = []
-            if filters:
-                if filters.and_:
-                    and_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.and_.items()]
-                    conditions.append(and_(*and_conditions))
-
-                if filters.or_:
-                    or_conditions = [getattr(table_cls, column).in_(values) for column, values in filters.or_.items()]
-                    conditions.append(or_(*or_conditions))
-
-                if filters.like_:
-                    like_conditions = [getattr(table_cls, attr).like(val) for attr, values in filters.like_.items() for val in values]
-                    conditions.append(or_(*like_conditions))
-
-                if filters.not_like_:
-                    not_like_conditions = [getattr(table_cls, attr).notlike(val) for attr, values in filters.not_like_.items() for val in values]
-                    conditions.append(and_(*not_like_conditions))
-
             statement = select(table_cls)
 
+            conditions = self._build_conditions(table_cls, filters) if filters else []
             if conditions:
                 statement = statement.where(and_(*conditions))
 
@@ -314,8 +328,7 @@ class DBManager():
 
         results = []
         for data in data_list:
-            if data.get('created_at') == '': # reason: ensure that the created_at column is not updated
-                data.pop('created_at')
+            data.pop('created_at', None) # reason: ensure that the created_at column is not updated
 
             conditions = [getattr(table_cls, pk) == data[pk] for pk in pk_columns]
             statement = update(table_cls).where(*conditions).values(data).returning(table_cls)
@@ -331,13 +344,13 @@ class DBManager():
         return df
 
 
-    def delete(self, table_cls, filters: DeleteFilters | List[DeleteFilters], single: bool = False):
+    def delete(self, table_cls, filters: WhereConditions, single: bool = False):
         """
         Delete records from the specified table based on the given filters.
 
         Args:
             - table_cls (class): The table class representing the table to delete from.
-            - filters (dict): A dictionary containing the column names as keys and the values to filter on as values.
+            - filters (WhereConditions): The filters to apply to the query.
             - single (bool, optional): If True, return a single record as a named tuple. Defaults to False.
 
         Returns:
@@ -345,11 +358,9 @@ class DBManager():
             - If `single` is `True`, a `namedtuple` representing the first deleted record.
         """
 
-        if isinstance(filters, DeleteFilters):
-            filters = [filters]
+        conditions = self._build_conditions(table_cls, filters) if filters else []
 
-        conditions = [getattr(table_cls, ftr.field).in_(ftr.values) for ftr in filters]
-        statement = delete(table_cls).where(*conditions).returning(table_cls)
+        statement = delete(table_cls).where(and_(*conditions)).returning(table_cls)
 
         returnings = self.session.execute(statement)
         df = self._parse_returnings(returnings, mapping_cls=table_cls)

@@ -155,16 +155,15 @@ async def crud_delete(input: CRUDDeleteInput) -> APIOutput:
     <pre>
     <code>
     {
-        'id': [1, 2, 3]
+        and_: {
+            "id": [1, 2, 3],
+            "name": ["value1", "value2"],
+        },
     }
     </code>
     </pre>
 
-    <h3>Args:</h3>
-        <ul>
-        <li>table_name (str): The name of the table to delete records from.</li>
-        <li>data (dict): The request body containing the filters.</li>
-        </ul>
+    Filters accept and, or, like and not like conditions.
 
     <h3>Returns:</h3>
         <ul>

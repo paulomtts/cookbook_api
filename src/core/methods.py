@@ -2,7 +2,7 @@ from fastapi.responses import JSONResponse
 from fastapi import Response
 from sqlalchemy.orm.exc import StaleDataError
 
-from src.core.schemas import APIOutput, QueryFilters
+from src.core.schemas import APIOutput, WhereConditions
 from src.core.start import db
 
 from typing import List, Union
@@ -61,7 +61,7 @@ def append_user_credentials(data: Union[List[dict], dict, pd.DataFrame], user_id
 
 
 # Verifications
-def check_stale_data(table_cls, filters: QueryFilters, reference: str) -> pd.DataFrame:
+def check_stale_data(table_cls, filters: WhereConditions, reference: str) -> pd.DataFrame:
     """
     Check if the data is stale.
     """

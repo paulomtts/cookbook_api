@@ -5,7 +5,7 @@ from src.core.start import db
 from src.core.auth import validate_session
 from src.core.methods import api_output, check_stale_data, append_user_credentials
 from src.core.models import  Recipes, RecipeIngredients
-from src.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, QueryFilters
+from src.core.schemas import APIOutput, DBOutput, DeleteFilters, SuccessMessages, WhereConditions
 from src.custom.queries import RECIPE_COMPOSITION_LOADED_QUERY as LOADED_QUERY\
                             , RECIPE_COMPOSITION_SNAPSHOT_QUERY as SNAPSHOT_QUERY\
                             , RECIPE_COMPOSITION_EMPTY_QUERY as EMPTY_QUERY
@@ -16,10 +16,10 @@ import os
 
 SELF_PATH = os.path.dirname(os.path.abspath(__file__))
 
-recipes_router = APIRouter()
+customRecipes_router = APIRouter()
 
 
-@recipes_router.get("/custom/maps")
+@customRecipes_router.get("/custom/maps")
 async def maps(request: Request):
     """
     Obtain the maps.json file.
@@ -42,7 +42,7 @@ async def maps(request: Request):
     return JSONResponse(status_code=200, content={'data': json_data, 'message': 'Configs retrieved!'}, headers=request.headers)
 
 
-@recipes_router.post("/custom/upsert_recipe")
+@customRecipes_router.post("/custom/upsert_recipe")
 async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_session)) -> APIOutput:
     """
     Update a recipe in the database.
@@ -65,7 +65,7 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
 
         # check for stale form data
         if form_data.get('id'):
-            recipe_filters = QueryFilters(and_={'id': [form_data.get('id')]})
+            recipe_filters = WhereConditions(and_={'id': [form_data.get('id')]})
             check_stale_data(Recipes, recipe_filters, timestamp)
 
 
@@ -75,7 +75,7 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
 
         # check for stale recipe ingredients
         if form_data.get('id'):
-            stale_recipe_ingredients_filters = QueryFilters(and_={'id_recipe': [form_data.get('id')]})
+            stale_recipe_ingredients_filters = WhereConditions(and_={'id_recipe': [form_data.get('id')]})
             old_recipe_ingredients = check_stale_data(RecipeIngredients, stale_recipe_ingredients_filters, timestamp)
         else:
             old_recipe_ingredients = pd.DataFrame(columns=curr_recipe_ingredients.columns)
@@ -114,7 +114,7 @@ async def submit_recipe(input: CSTUpsertRecipe, user_id: str = Depends(validate_
     return _submit_recipe(form_data, timestamp, curr_recipe_ingredients)
 
 
-@recipes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
+@customRecipes_router.delete("/custom/delete_recipe", dependencies=[Depends(validate_session)])
 async def delete_recipe(input: CSTDeleteRecipeInput) -> APIOutput:
     """
     Delete a recipe from the database.

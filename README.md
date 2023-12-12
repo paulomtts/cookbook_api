@@ -32,4 +32,5 @@ This project is usable out of the box, but don't forget to setup your enviroment
 All the thanks to @tiangolo. FastAPI is a really amazing piece of software!
 
 ## Comming up
+- Private recipes
 - Image files upload route

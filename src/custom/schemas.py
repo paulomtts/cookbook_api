@@ -13,4 +13,3 @@ class CSTUpsertRecipe(BaseModel):
 class CSTDeleteRecipeInput(BaseModel):
     recipe: DeleteFilters
     composition: DeleteFilters
-
